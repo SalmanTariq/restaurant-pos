@@ -1,130 +1,113 @@
-import { FormEvent, useState } from "react";
-import { authClient, clearAuthToken } from "./auth-client";
+import { useEffect, useState } from "react";
+import { authClient } from "./auth-client";
+import { AppShell } from "./layout/AppShell";
+import { PosProvider, usePos } from "./pos-store";
+import { LoginScreen } from "./screens/LoginScreen";
+import { OrderScreen } from "./screens/OrderScreen";
+import { ExpensesScreen } from "./screens/ExpensesScreen";
+import { InventoryScreen } from "./screens/InventoryScreen";
+import { OrdersScreen } from "./screens/OrdersScreen";
+import { SalesScreen } from "./screens/SalesScreen";
+import { BalanceScreen } from "./screens/BalanceScreen";
+import { DayStartScreen } from "./screens/DayStartScreen";
+import { TablesScreen } from "./screens/TablesScreen";
+import { UsersScreen } from "./screens/UsersScreen";
+import type { CartLine, OrderType, Screen } from "./pos-types";
 import "./App.css";
 
-type Mode = "sign-in" | "sign-up";
+function SignedIn({
+  name,
+  role,
+}: {
+  name: string;
+  role?: string | null;
+}) {
+  const { tables, activeOrders, todayOpen } = usePos();
+  const [screen, setScreen] = useState<Screen>("order");
+  const [orderType, setOrderType] = useState<OrderType>("takeaway");
+  const [tableId, setTableId] = useState<string | null>(null);
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const [focusOrderId, setFocusOrderId] = useState<string | null>(null);
 
-function AuthForm() {
-  const [mode, setMode] = useState<Mode>("sign-in");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
-
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    setError("");
-    setPending(true);
-
-    const result =
-      mode === "sign-up"
-        ? await authClient.signUp.email({ name, email, password })
-        : await authClient.signIn.email({ email, password });
-
-    setPending(false);
-
-    if (result.error) {
-      setError(result.error.message ?? "Authentication failed");
+  useEffect(() => {
+    if (tableId && !tables.some((table) => table.id === tableId)) {
+      setTableId(null);
     }
+  }, [tableId, tables]);
+
+  function openTables() {
+    setScreen("tables");
+  }
+
+  if (!todayOpen) {
+    return <DayStartScreen openedBy={name} />;
   }
 
   return (
-    <main className="container">
-      <h1>Restaurant POS</h1>
-      <p>Sign in with email and password</p>
-      <form className="auth-form" onSubmit={onSubmit}>
-        {mode === "sign-up" && (
-          <input
-            type="text"
-            value={name}
-            onChange={(event) => setName(event.currentTarget.value)}
-            placeholder="Name"
-            autoComplete="name"
-            required
-          />
-        )}
-        <input
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.currentTarget.value)}
-          placeholder="Email"
-          autoComplete="email"
-          required
+    <AppShell name={name} role={role} screen={screen} onScreen={setScreen}>
+      {screen === "order" && (
+        <OrderScreen
+          orderType={orderType}
+          tableId={tableId}
+          cart={cart}
+          onOrderType={(type) => {
+            setOrderType(type);
+            if (type === "takeaway") setTableId(null);
+          }}
+          onOpenTables={openTables}
+          onCart={setCart}
         />
-        <input
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.currentTarget.value)}
-          placeholder="Password"
-          autoComplete={
-            mode === "sign-up" ? "new-password" : "current-password"
-          }
-          minLength={8}
-          required
+      )}
+      {screen === "tables" && (
+        <TablesScreen
+          tables={tables}
+          selected={tableId}
+          onSelect={(id) => {
+            const existing = activeOrders.find((order) => order.tableId === id);
+            if (existing) {
+              setFocusOrderId(existing.id);
+              setScreen("orders");
+              return;
+            }
+            setTableId(id);
+            setOrderType("dine-in");
+            setScreen("order");
+          }}
+          onBack={() => setScreen("order")}
         />
-        <button type="submit" disabled={pending}>
-          {pending
-            ? "Please wait..."
-            : mode === "sign-up"
-              ? "Create account"
-              : "Sign in"}
-        </button>
-      </form>
-      {error && <p className="auth-error">{error}</p>}
-      <button
-        type="button"
-        className="link-button"
-        onClick={() => {
-          setError("");
-          setMode(mode === "sign-in" ? "sign-up" : "sign-in");
-        }}
-      >
-        {mode === "sign-in"
-          ? "Need an account? Sign up"
-          : "Already have an account? Sign in"}
-      </button>
-    </main>
-  );
-}
-
-function SignedIn({ name, email }: { name: string; email: string }) {
-  return (
-    <main className="container">
-      <h1>Restaurant POS</h1>
-      <p>
-        Signed in as <strong>{name}</strong>
-      </p>
-      <p>{email}</p>
-      <button
-        type="button"
-        onClick={async () => {
-          await authClient.signOut();
-          clearAuthToken();
-        }}
-      >
-        Sign out
-      </button>
-    </main>
+      )}
+      {screen === "orders" && <OrdersScreen focusOrderId={focusOrderId} />}
+      {screen === "sales" && (
+        <SalesScreen onOpenExpenses={() => setScreen("expenses")} />
+      )}
+      {screen === "expenses" && <ExpensesScreen />}
+      {screen === "balance" && <BalanceScreen />}
+      {screen === "inventory" && role === "admin" && <InventoryScreen />}
+      {screen === "users" && role === "admin" && <UsersScreen />}
+    </AppShell>
   );
 }
 
 function App() {
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, isPending, isRefetching } = authClient.useSession();
 
-  if (isPending) {
+  if (isPending && !isRefetching) {
     return (
-      <main className="container">
-        <p>Loading session...</p>
-      </main>
+      <div className="login-page">
+        <p className="boot">Opening Delhi Malik Nihari…</p>
+      </div>
     );
   }
 
   if (!session) {
-    return <AuthForm />;
+    return <LoginScreen />;
   }
 
-  return <SignedIn name={session.user.name} email={session.user.email} />;
+  return (
+    <PosProvider>
+      <SignedIn name={session.user.name} role={session.user.role} />
+    </PosProvider>
+  );
 }
 
 export default App;

@@ -1,0 +1,21 @@
+2026-09-08T06:19:41.907Z launch: Executable doesn't exist at /tmp/cursor-sandbox-cache/e3b12a23331815f16717a182b4db593f/playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell
+╔═════════════════════════════════════════════════════════════════════════╗
+║ Looks like Playwright Test or Playwright was just installed or updated. ║
+║ Please run the following command to download new browsers:              ║
+║                                                                         ║
+║     npx playwright install                                              ║
+║                                                                         ║
+║ <3 Playwright Team                                                      ║
+╚═════════════════════════════════════════════════════════════════════════╝
+launch: Executable doesn't exist at /tmp/cursor-sandbox-cache/e3b12a23331815f16717a182b4db593f/playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell
+╔═════════════════════════════════════════════════════════════════════════╗
+║ Looks like Playwright Test or Playwright was just installed or updated. ║
+║ Please run the following command to download new browsers:              ║
+║                                                                         ║
+║     npx playwright install                                              ║
+║                                                                         ║
+║ <3 Playwright Team                                                      ║
+╚═════════════════════════════════════════════════════════════════════════╝
+    at launch (/home/salman/.claude/skills/gstack/browse/src/browser-manager.ts:372:35)
+    at async start (/home/salman/.claude/skills/gstack/browse/src/server.ts:2974:28)
+    at processTicksAndRejections (native:7:39)

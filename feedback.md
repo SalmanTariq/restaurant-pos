@@ -1,0 +1,5 @@
+- Labor daily wages
+- Remove cash collection amount; It should just ask mode of payment and proceed.
+- Online instead of card
+- Balance sheet - date range
+- offline work + sync; (PWA?)

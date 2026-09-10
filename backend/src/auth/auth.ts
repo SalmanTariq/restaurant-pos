@@ -16,9 +16,9 @@ async function createAuth() {
   const { betterAuth } = await loadEsm<typeof import('better-auth')>(
     'better-auth',
   );
-  const { bearer } = await loadEsm<typeof import('better-auth/plugins')>(
-    'better-auth/plugins',
-  );
+  const { bearer, admin } = await loadEsm<
+    typeof import('better-auth/plugins')
+  >('better-auth/plugins');
   const path = databasePath();
   mkdirSync(dirname(path), { recursive: true });
   sqlite = new Database(path);
@@ -33,8 +33,15 @@ async function createAuth() {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
+      disableSignUp: true,
     },
-    plugins: [bearer()],
+    plugins: [
+      bearer(),
+      admin({
+        defaultRole: 'cashier',
+        adminRoles: ['admin'],
+      }),
+    ],
     logger: {
       disabled: process.env.NODE_ENV === 'test',
     },
