@@ -43,6 +43,8 @@ type PosContextValue = {
   tables: DiningTable[];
   activeOrders: PosOrder[];
   available: (itemId: string, extra?: CartLine[]) => number;
+  onTickets: (itemId: string) => number;
+  addCooked: (itemId: string, qty: number) => void;
   placeOrder: (input: PlaceInput) => PosOrder;
   addItemToOrder: (orderId: string, item: MenuItem) => void;
   bumpOrderItem: (orderId: string, itemId: string, delta: number) => void;
@@ -64,6 +66,57 @@ const PosContext = createContext<PosContextValue | null>(null);
 const ORDERS_KEY = "dmn_pos_orders";
 const BOOKS_KEY = "dmn_pos_books";
 const DAYS_KEY = "dmn_pos_days";
+const MENU_KEY = "dmn_pos_menu";
+
+function asMenuItem(value: unknown): MenuItem | null {
+  if (!value || typeof value !== "object") return null;
+  const entry = value as MenuItem;
+  if (typeof entry.id !== "string" || !entry.id) return null;
+  if (typeof entry.name !== "string" || !entry.name.trim()) return null;
+  if (typeof entry.category !== "string") return null;
+  if (!Number.isFinite(entry.price) || entry.price < 0) return null;
+  const stock = Number(entry.stock);
+  if (!Number.isFinite(stock) || stock < 0) return null;
+  return {
+    id: entry.id,
+    name: entry.name.trim(),
+    category: entry.category,
+    price: entry.price,
+    stock: Math.floor(stock),
+    active: entry.active !== false,
+  };
+}
+
+function loadMenu(): MenuItem[] {
+  const catalog = MENU_ITEMS.map((item) => ({ ...item, stock: 0 }));
+  try {
+    const raw = localStorage.getItem(MENU_KEY);
+    if (!raw) return catalog;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return catalog;
+    const saved = parsed
+      .map(asMenuItem)
+      .filter((item): item is MenuItem => item !== null);
+    const byId = new Map(saved.map((item) => [item.id, item]));
+    const merged = catalog.map((item) => {
+      const prev = byId.get(item.id);
+      byId.delete(item.id);
+      return prev
+        ? {
+            ...item,
+            name: prev.name,
+            category: prev.category || item.category,
+            price: prev.price,
+            stock: prev.stock,
+            active: prev.active,
+          }
+        : item;
+    });
+    return [...merged, ...byId.values()];
+  } catch {
+    return catalog;
+  }
+}
 
 function normalizePayment(value: string | undefined): PaymentMethod | undefined {
   if (value === "online" || value === "card") return "online";
@@ -146,7 +199,7 @@ function consumeStock(menu: MenuItem[], lines: CartLine[]) {
 }
 
 export function PosProvider({ children }: { children: ReactNode }) {
-  const [menu, setMenu] = useState<MenuItem[]>(MENU_ITEMS);
+  const [menu, setMenu] = useState<MenuItem[]>(loadMenu);
   const [orders, setOrders] = useState<PosOrder[]>(
     () => loadSavedOrders()?.orders ?? SEED_ORDERS,
   );
@@ -171,6 +224,10 @@ export function PosProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem(DAYS_KEY, JSON.stringify(days));
   }, [days]);
+
+  useEffect(() => {
+    localStorage.setItem(MENU_KEY, JSON.stringify(menu));
+  }, [menu]);
 
   const activeOrders = useMemo(
     () => orders.filter((order) => order.status !== "paid"),
@@ -200,6 +257,20 @@ export function PosProvider({ children }: { children: ReactNode }) {
     const item = menu.find((entry) => entry.id === itemId);
     if (!item) return 0;
     return Math.max(0, item.stock - reservedQty(itemId, orders, extra));
+  }
+
+  function onTickets(itemId: string) {
+    return reservedQty(itemId, orders);
+  }
+
+  function addCooked(itemId: string, qty: number) {
+    const n = Math.floor(qty);
+    if (!Number.isFinite(n) || n <= 0) return;
+    setMenu((current) =>
+      current.map((item) =>
+        item.id === itemId ? { ...item, stock: item.stock + n } : item,
+      ),
+    );
   }
 
   function placeOrder(input: PlaceInput) {
@@ -355,6 +426,8 @@ export function PosProvider({ children }: { children: ReactNode }) {
     tables,
     activeOrders,
     available,
+    onTickets,
+    addCooked,
     placeOrder,
     addItemToOrder,
     bumpOrderItem,

@@ -17,23 +17,23 @@ export const CATEGORIES = [
 ];
 
 export const MENU_ITEMS: MenuItem[] = [
-  { id: "ck-half", name: "Chicken Karahi (Half)", category: "Karahi", price: 950, stock: 18, active: true },
-  { id: "ck-full", name: "Chicken Karahi (Full)", category: "Karahi", price: 1800, stock: 8, active: true },
-  { id: "mk-half", name: "Mutton Karahi (Half)", category: "Karahi", price: 1450, stock: 10, active: true },
-  { id: "mk-full", name: "Mutton Karahi (Full)", category: "Karahi", price: 2700, stock: 4, active: true },
-  { id: "daal", name: "Daal Fry", category: "Karahi", price: 380, stock: 22, active: true },
-  { id: "palak", name: "Palak Paneer", category: "Karahi", price: 520, stock: 12, active: true },
-  { id: "roti", name: "Tandoori Roti", category: "Naan & Roti", price: 25, stock: 240, active: true },
-  { id: "naan", name: "Roghni Naan", category: "Naan & Roti", price: 60, stock: 90, active: true },
-  { id: "garlic", name: "Garlic Naan", category: "Naan & Roti", price: 80, stock: 40, active: true },
-  { id: "seekh", name: "Seekh Kabab", category: "BBQ", price: 380, stock: 30, active: true },
-  { id: "malai", name: "Malai Boti", category: "BBQ", price: 420, stock: 16, active: true },
-  { id: "biryani", name: "Chicken Biryani", category: "Rice", price: 380, stock: 28, active: true },
-  { id: "pulao", name: "Yakhni Pulao", category: "Rice", price: 340, stock: 14, active: true },
-  { id: "lassi", name: "Fresh Lassi", category: "Drinks", price: 180, stock: 36, active: true },
-  { id: "chai", name: "Doodh Patti", category: "Drinks", price: 80, stock: 50, active: true },
-  { id: "raita", name: "Raita", category: "Sides", price: 90, stock: 40, active: true },
-  { id: "salad", name: "Kachumber", category: "Sides", price: 70, stock: 40, active: true },
+  { id: "ck-half", name: "Chicken Karahi (Half)", category: "Karahi", price: 950, stock: 0, active: true },
+  { id: "ck-full", name: "Chicken Karahi (Full)", category: "Karahi", price: 1800, stock: 0, active: true },
+  { id: "mk-half", name: "Mutton Karahi (Half)", category: "Karahi", price: 1450, stock: 0, active: true },
+  { id: "mk-full", name: "Mutton Karahi (Full)", category: "Karahi", price: 2700, stock: 0, active: true },
+  { id: "daal", name: "Daal Fry", category: "Karahi", price: 380, stock: 0, active: true },
+  { id: "palak", name: "Palak Paneer", category: "Karahi", price: 520, stock: 0, active: true },
+  { id: "roti", name: "Tandoori Roti", category: "Naan & Roti", price: 25, stock: 0, active: true },
+  { id: "naan", name: "Roghni Naan", category: "Naan & Roti", price: 60, stock: 0, active: true },
+  { id: "garlic", name: "Garlic Naan", category: "Naan & Roti", price: 80, stock: 0, active: true },
+  { id: "seekh", name: "Seekh Kabab", category: "BBQ", price: 380, stock: 0, active: true },
+  { id: "malai", name: "Malai Boti", category: "BBQ", price: 420, stock: 0, active: true },
+  { id: "biryani", name: "Chicken Biryani", category: "Rice", price: 380, stock: 0, active: true },
+  { id: "pulao", name: "Yakhni Pulao", category: "Rice", price: 340, stock: 0, active: true },
+  { id: "lassi", name: "Fresh Lassi", category: "Drinks", price: 180, stock: 0, active: true },
+  { id: "chai", name: "Doodh Patti", category: "Drinks", price: 80, stock: 0, active: true },
+  { id: "raita", name: "Raita", category: "Sides", price: 90, stock: 0, active: true },
+  { id: "salad", name: "Kachumber", category: "Sides", price: 70, stock: 0, active: true },
 ];
 
 export const DEFAULT_FLOOR: TableLayout[] = [
@@ -213,6 +213,17 @@ export const TOKENS: TokenTicket[] = [
 
 export function rupees(amount: number) {
   return `Rs ${amount.toLocaleString("en-PK")}`;
+}
+
+export function stockLabel(left: number) {
+  if (left <= 0) return "Sold out";
+  return `${left} in stock`;
+}
+
+export function stockTone(left: number) {
+  if (left <= 0) return "is-out";
+  if (left <= 5) return "is-low";
+  return "";
 }
 
 export function todayISO() {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CATEGORIES, lineTotal, rupees } from "../demo-data";
+import { CATEGORIES, lineTotal, rupees, stockLabel, stockTone } from "../demo-data";
 import { usePos } from "../pos-store";
 import type { PosOrder } from "../pos-types";
 import { printGuestBill } from "../print-bill";
@@ -187,10 +187,12 @@ export function OrdersScreen({
                       onClick={() => addItemToOrder(selected.id, item)}
                     >
                       <span>{item.name}</span>
-                      <strong>
-                        {rupees(item.price)}
-                        <em> · {left} left</em>
-                      </strong>
+                      <span className="item-meta">
+                        <strong>{rupees(item.price)}</strong>
+                        <em className={["stock-count", stockTone(left)].filter(Boolean).join(" ")}>
+                          {stockLabel(left)}
+                        </em>
+                      </span>
                     </button>
                   );
                 })}

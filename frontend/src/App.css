@@ -413,6 +413,28 @@ select:focus-visible {
   font-size: 15px;
 }
 
+.item-card .item-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.stock-count {
+  font-style: normal;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.stock-count.is-low {
+  color: var(--tandoor-deep);
+}
+
+.stock-count.is-out {
+  color: var(--danger);
+}
+
 .item-card strong em {
   font-style: normal;
   font-weight: 600;
@@ -1234,6 +1256,131 @@ select:focus-visible {
   grid-template-columns: 360px 1fr;
   gap: 20px;
   align-items: start;
+}
+
+.cook-filter {
+  margin-bottom: 16px;
+  border-radius: 18px;
+}
+
+.cook-board {
+  list-style: none;
+  margin: 0 0 28px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.cook-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+}
+
+.cook-card.is-editing {
+  box-shadow: 0 0 0 3px var(--ink);
+}
+
+.cook-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.cook-name {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  text-align: left;
+}
+
+.cook-edit {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.cook-name strong {
+  font-size: 17px;
+}
+
+.cook-name span {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cook-left {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.cook-left strong {
+  font-size: 32px;
+  letter-spacing: -0.03em;
+}
+
+.cook-left.is-low strong {
+  color: var(--tandoor-deep);
+}
+
+.cook-left.is-out strong {
+  color: var(--danger);
+}
+
+.cook-left span {
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.cook-add {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.cook-add label span {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.cook-add input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbf8f4;
+}
+
+.btn-cook {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--tandoor);
+  color: #fff;
+  font-weight: 800;
+}
+
+.btn-cook:hover {
+  background: var(--tandoor-deep);
 }
 
 .expenses-layout {
