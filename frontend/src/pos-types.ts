@@ -6,7 +6,8 @@ export type Screen =
   | "expenses"
   | "balance"
   | "inventory"
-  | "users";
+  | "users"
+  | "settings";
 export type OrderType = "takeaway" | "dine-in";
 export type TableStatus = "free" | "seated" | "bill";
 export type PaymentMethod = "cash" | "online";
@@ -88,6 +89,13 @@ export type DayOpen = {
   openedAt: string;
   pettyCash: number;
   openedBy: string;
+};
+
+export type PosSettings = {
+  restaurantName: string;
+  logoDataUrl: string | null;
+  requirePettyCash: boolean;
+  useInventory: boolean;
 };
 
 export type PosOrder = {

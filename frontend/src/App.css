@@ -121,6 +121,14 @@ select:focus-visible {
   box-shadow: 0 0 0 2px #3a2a1e;
 }
 
+.brand-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #fff;
+}
+
 .nav {
   display: flex;
   justify-content: center;
@@ -1381,6 +1389,60 @@ select:focus-visible {
 
 .btn-cook:hover {
   background: var(--tandoor-deep);
+}
+
+.settings-card {
+  margin-bottom: 20px;
+}
+
+.settings-block {
+  margin-top: 28px;
+}
+
+.settings-saved {
+  margin: 8px 0 0;
+  font-weight: 700;
+  color: var(--pay);
+}
+
+.logo-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.logo-preview {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: #fbf8f4;
+}
+
+.logo-preview.is-empty {
+  display: block;
+  background:
+    radial-gradient(circle at 50% 30%, #ffb25a, var(--tandoor) 55%, #7a2e00);
+}
+
+.logo-actions {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.logo-file {
+  position: relative;
+  overflow: hidden;
+}
+
+.logo-file input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .expenses-layout {

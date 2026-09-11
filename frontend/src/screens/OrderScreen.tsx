@@ -19,7 +19,7 @@ export function OrderScreen({
   onOpenTables: () => void;
   onCart: (cart: CartLine[]) => void;
 }) {
-  const { menu, nextToken, available, placeOrder } = usePos();
+  const { menu, nextToken, available, placeOrder, settings } = usePos();
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [paying, setPaying] = useState(false);
   const [ticketOpen, setTicketOpen] = useState(false);
@@ -125,20 +125,23 @@ export function OrderScreen({
         <div className="item-grid">
           {items.map((item) => {
             const left = available(item.id, cart);
+            const soldOut = settings.useInventory && left <= 0;
             return (
               <button
                 key={item.id}
                 type="button"
-                className={left <= 0 ? "item-card is-out" : "item-card"}
-                disabled={left <= 0}
+                className={soldOut ? "item-card is-out" : "item-card"}
+                disabled={soldOut}
                 onClick={() => addItem(item.id, item.name, item.price)}
               >
                 <span>{item.name}</span>
                 <span className="item-meta">
                   <strong>{rupees(item.price)}</strong>
-                  <em className={["stock-count", stockTone(left)].filter(Boolean).join(" ")}>
-                    {stockLabel(left)}
-                  </em>
+                  {settings.useInventory ? (
+                    <em className={["stock-count", stockTone(left)].filter(Boolean).join(" ")}>
+                      {stockLabel(left)}
+                    </em>
+                  ) : null}
                 </span>
               </button>
             );

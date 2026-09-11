@@ -26,7 +26,9 @@ import type {
   StaffMember,
   TableStatus,
   DayOpen,
+  PosSettings,
 } from "./pos-types";
+import { SETTINGS_KEY, loadSettings } from "./settings";
 
 type PlaceInput = {
   type: PosOrder["type"];
@@ -60,6 +62,8 @@ type PosContextValue = {
   days: DayOpen[];
   todayOpen: DayOpen | null;
   startDay: (pettyCash: number, openedBy: string) => void;
+  settings: PosSettings;
+  updateSettings: (patch: Partial<PosSettings>) => void;
 };
 
 const PosContext = createContext<PosContextValue | null>(null);
@@ -212,6 +216,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
   );
   const [staff, setStaff] = useState<StaffMember[]>(() => loadBooks().staff);
   const [days, setDays] = useState<DayOpen[]>(loadDays);
+  const [settings, setSettings] = useState<PosSettings>(loadSettings);
 
   useEffect(() => {
     localStorage.setItem(ORDERS_KEY, JSON.stringify({ orders, nextToken }));
@@ -228,6 +233,14 @@ export function PosProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem(MENU_KEY, JSON.stringify(menu));
   }, [menu]);
+
+  useEffect(() => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }, [settings]);
+
+  useEffect(() => {
+    document.title = settings.restaurantName;
+  }, [settings.restaurantName]);
 
   const activeOrders = useMemo(
     () => orders.filter((order) => order.status !== "paid"),
@@ -254,6 +267,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
   }
 
   function available(itemId: string, extra: CartLine[] = []) {
+    if (!settings.useInventory) return 10_000;
     const item = menu.find((entry) => entry.id === itemId);
     if (!item) return 0;
     return Math.max(0, item.stock - reservedQty(itemId, orders, extra));
@@ -287,7 +301,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
     };
     setNextToken((value) => value + 1);
     setOrders((current) => [order, ...current]);
-    if (input.status === "paid") {
+    if (input.status === "paid" && settings.useInventory) {
       setMenu((current) => consumeStock(current, input.lines));
     }
     return order;
@@ -342,7 +356,9 @@ export function PosProvider({ children }: { children: ReactNode }) {
         order.id === orderId ? { ...order, status: "paid", payment } : order,
       ),
     );
-    setMenu((current) => consumeStock(current, target.lines));
+    if (settings.useInventory) {
+      setMenu((current) => consumeStock(current, target.lines));
+    }
   }
 
   function addExpense(row: Omit<ExpenseRow, "id">) {
@@ -419,6 +435,20 @@ export function PosProvider({ children }: { children: ReactNode }) {
     if (opened) sessionStorage.setItem("shift_started", now.toISOString());
   }
 
+  function updateSettings(patch: Partial<PosSettings>) {
+    setSettings((current) => {
+      const restaurantName =
+        typeof patch.restaurantName === "string"
+          ? patch.restaurantName.trim()
+          : current.restaurantName;
+      return {
+        ...current,
+        ...patch,
+        restaurantName: restaurantName || current.restaurantName,
+      };
+    });
+  }
+
   const value: PosContextValue = {
     menu,
     orders,
@@ -443,6 +473,8 @@ export function PosProvider({ children }: { children: ReactNode }) {
     days,
     todayOpen,
     startDay,
+    settings,
+    updateSettings,
   };
 
   return <PosContext.Provider value={value}>{children}</PosContext.Provider>;

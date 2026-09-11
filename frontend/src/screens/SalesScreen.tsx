@@ -16,6 +16,7 @@ import {
 } from "../export-report";
 import { DateRangeFields } from "./DateRangeFields";
 import { ExportButtons } from "./ExportButtons";
+import { restaurantSlug } from "../settings";
 
 function clockFromIso(value?: string) {
   const date = value ? new Date(value) : new Date();
@@ -60,7 +61,7 @@ export function SalesScreen({
 }: {
   onOpenExpenses: () => void;
 }) {
-  const { orders, expenses, days } = usePos();
+  const { orders, expenses, days, settings } = usePos();
   const today = todayISO();
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
@@ -121,8 +122,8 @@ export function SalesScreen({
   function exportSales(format: ExportFormat) {
     downloadReport(
       {
-        basename: `delhi-malik-nihari-sales-${fileStamp(from, to)}`,
-        title: "Delhi Malik Nihari - Sales",
+        basename: `${restaurantSlug(settings.restaurantName)}-sales-${fileStamp(from, to)}`,
+        title: `${settings.restaurantName} - Sales`,
         subtitle: `${rangeLabel(from, to)} · ${rows.length} orders · ${rupees(filteredTotal)}`,
         headers: ["Token", "Date", "Time", "Type", "Items", "Payment", "Amount"],
         rows: rows.map((row) => [
@@ -159,10 +160,12 @@ export function SalesScreen({
           <DateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} />
           <ExportButtons disabled={rows.length === 0} onExport={exportSales} />
           <div className="dash-kpis">
-            <p>
-              Petty cash
-              <strong>{rupees(pettyCash)}</strong>
-            </p>
+            {settings.requirePettyCash ? (
+              <p>
+                Petty cash
+                <strong>{rupees(pettyCash)}</strong>
+              </p>
+            ) : null}
             <p>
               Cash in drawer
               <strong>{rupees(cashInDrawer)}</strong>

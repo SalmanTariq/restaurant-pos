@@ -9,10 +9,11 @@ import {
 } from "../export-report";
 import { DateRangeFields } from "./DateRangeFields";
 import { ExportButtons } from "./ExportButtons";
+import { restaurantSlug } from "../settings";
 
 export function BalanceScreen() {
   const today = todayISO();
-  const { orders, expenses, days } = usePos();
+  const { orders, expenses, days, settings } = usePos();
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
 
@@ -55,7 +56,9 @@ export function BalanceScreen() {
   const net = sales - expenseTotal;
 
   const exportRows: (string | number)[][] = [
-    ["Opening petty cash", pettyCash],
+    ...(settings.requirePettyCash
+      ? [["Opening petty cash", pettyCash] as (string | number)[]]
+      : []),
     ["Cash sales", cash],
     ["Online sales", online],
     ["Total sales", sales],
@@ -68,8 +71,8 @@ export function BalanceScreen() {
   function exportBalance(format: ExportFormat) {
     downloadReport(
       {
-        basename: `delhi-malik-nihari-balance-${fileStamp(from, to)}`,
-        title: "Delhi Malik Nihari - Balance sheet",
+        basename: `${restaurantSlug(settings.restaurantName)}-balance-${fileStamp(from, to)}`,
+        title: `${settings.restaurantName} - Balance sheet`,
         subtitle: rangeLabel(from, to),
         headers: ["Line", "Amount"],
         rows: exportRows,
@@ -87,7 +90,9 @@ export function BalanceScreen() {
           <h1>Balance sheet</h1>
           <p className="subhead">
             Paid sales minus expenses for {from === to ? from : `${from} → ${to}`}.
-            Petty cash stays in the till count, not in profit.
+            {settings.requirePettyCash
+              ? " Petty cash stays in the till count, not in profit."
+              : ""}
           </p>
         </div>
         <div className="head-tools">
@@ -107,10 +112,12 @@ export function BalanceScreen() {
       </div>
 
       <div className="metric-row">
-        <div className="metric cash">
-          <span>Petty cash</span>
-          <strong>{rupees(pettyCash)}</strong>
-        </div>
+        {settings.requirePettyCash ? (
+          <div className="metric cash">
+            <span>Petty cash</span>
+            <strong>{rupees(pettyCash)}</strong>
+          </div>
+        ) : null}
         <div className="metric cash">
           <span>Cash in</span>
           <strong>{rupees(cash)}</strong>
@@ -139,10 +146,12 @@ export function BalanceScreen() {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>Opening petty cash</td>
-                <td className="num">{rupees(pettyCash)}</td>
-              </tr>
+              {settings.requirePettyCash ? (
+                <tr>
+                  <td>Opening petty cash</td>
+                  <td className="num">{rupees(pettyCash)}</td>
+                </tr>
+              ) : null}
               <tr>
                 <td>Cash sales</td>
                 <td className="num">{rupees(cash)}</td>

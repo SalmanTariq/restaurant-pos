@@ -9,10 +9,11 @@ import {
 } from "../export-report";
 import { DateRangeFields } from "./DateRangeFields";
 import { ExportButtons } from "./ExportButtons";
+import { restaurantSlug } from "../settings";
 
 export function ExpensesScreen() {
   const today = todayISO();
-  const { expenses, staff, addExpense, addStaff, recordWage } = usePos();
+  const { expenses, staff, addExpense, addStaff, recordWage, settings } = usePos();
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
   const [query, setQuery] = useState("");
@@ -49,8 +50,8 @@ export function ExpensesScreen() {
   function exportExpenses(format: ExportFormat) {
     downloadReport(
       {
-        basename: `delhi-malik-nihari-expenses-${fileStamp(from, to)}`,
-        title: "Delhi Malik Nihari - Expenses",
+        basename: `${restaurantSlug(settings.restaurantName)}-expenses-${fileStamp(from, to)}`,
+        title: `${settings.restaurantName} - Expenses`,
         subtitle: `${rangeLabel(from, to)} · ${visible.length} expenses · ${rupees(rangeTotal)}`,
         headers: ["Title", "Category", "Date", "Notes", "Amount"],
         rows: visible.map((row) => [

@@ -1,5 +1,6 @@
 import { lineTotal, rupees } from "./demo-data";
 import type { CartLine, PosOrder } from "./pos-types";
+import { DEFAULT_RESTAURANT_NAME, isLogoDataUrl } from "./settings";
 
 function escapeHtml(value: string) {
   return value
@@ -8,7 +9,10 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;");
 }
 
-export function printGuestBill(order: PosOrder) {
+export function printGuestBill(
+  order: PosOrder,
+  brand: { restaurantName?: string; logoDataUrl?: string | null } = {},
+) {
   const total = lineTotal(order.lines);
   const where =
     order.type === "takeaway" ? "Takeaway" : `Table ${order.tableId ?? ""}`;
@@ -22,6 +26,8 @@ export function printGuestBill(order: PosOrder) {
       </tr>`,
     )
     .join("");
+  const name = (brand.restaurantName ?? DEFAULT_RESTAURANT_NAME).trim() || DEFAULT_RESTAURANT_NAME;
+  const logo = isLogoDataUrl(brand.logoDataUrl ?? null) ? brand.logoDataUrl : null;
 
   const html = `<!doctype html>
 <html>
@@ -41,6 +47,7 @@ export function printGuestBill(order: PosOrder) {
       }
       h1 { font-size: 16px; margin: 0; letter-spacing: 0.02em; }
       .brand { text-align: center; border-bottom: 2px dashed #1a1612; padding-bottom: 10px; }
+      .logo { display: block; max-width: 42mm; max-height: 28mm; margin: 0 auto 8px; object-fit: contain; }
       .meta { margin: 10px 0; font-size: 13px; }
       table { width: 100%; border-collapse: collapse; font-size: 13px; }
       th { text-align: left; border-bottom: 1px solid #1a1612; padding: 4px 0; }
@@ -53,7 +60,8 @@ export function printGuestBill(order: PosOrder) {
   <body>
     <article class="chit">
       <div class="brand">
-        <h1>Delhi Malik Nihari</h1>
+        ${logo ? `<img class="logo" src="${logo}" alt="" />` : ""}
+        <h1>${escapeHtml(name)}</h1>
         <div>Guest bill</div>
       </div>
       <div class="meta">

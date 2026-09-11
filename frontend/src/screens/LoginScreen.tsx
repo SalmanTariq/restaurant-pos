@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { authClient } from "../auth-client";
+import { BrandLockup } from "../layout/BrandLockup";
 import { SyncStatus } from "./SyncStatus";
 
 export function LoginScreen() {
@@ -28,10 +29,7 @@ export function LoginScreen() {
   return (
     <div className="login-page">
       <header className="topbar login-topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true" />
-          Delhi Malik Nihari
-        </div>
+        <BrandLockup />
         <SyncStatus />
       </header>
 

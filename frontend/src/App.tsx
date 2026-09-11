@@ -10,8 +10,10 @@ import { OrdersScreen } from "./screens/OrdersScreen";
 import { SalesScreen } from "./screens/SalesScreen";
 import { BalanceScreen } from "./screens/BalanceScreen";
 import { DayStartScreen } from "./screens/DayStartScreen";
+import { SettingsScreen } from "./screens/SettingsScreen";
 import { TablesScreen } from "./screens/TablesScreen";
 import { UsersScreen } from "./screens/UsersScreen";
+import { loadSettings } from "./settings";
 import type { CartLine, OrderType, Screen } from "./pos-types";
 import "./App.css";
 
@@ -22,7 +24,7 @@ function SignedIn({
   name: string;
   role?: string | null;
 }) {
-  const { tables, activeOrders, todayOpen } = usePos();
+  const { tables, activeOrders, todayOpen, settings, startDay } = usePos();
   const [screen, setScreen] = useState<Screen>("order");
   const [orderType, setOrderType] = useState<OrderType>("takeaway");
   const [tableId, setTableId] = useState<string | null>(null);
@@ -35,12 +37,32 @@ function SignedIn({
     }
   }, [tableId, tables]);
 
+  useEffect(() => {
+    if (!settings.requirePettyCash && !todayOpen) {
+      startDay(0, name);
+    }
+  }, [name, settings.requirePettyCash, startDay, todayOpen]);
+
+  useEffect(() => {
+    if (screen === "inventory" && !settings.useInventory) {
+      setScreen("order");
+    }
+  }, [screen, settings.useInventory]);
+
   function openTables() {
     setScreen("tables");
   }
 
-  if (!todayOpen) {
+  if (settings.requirePettyCash && !todayOpen) {
     return <DayStartScreen openedBy={name} />;
+  }
+
+  if (!todayOpen) {
+    return (
+      <div className="login-page">
+        <p className="boot">Opening {settings.restaurantName}…</p>
+      </div>
+    );
   }
 
   return (
@@ -82,8 +104,11 @@ function SignedIn({
       )}
       {screen === "expenses" && <ExpensesScreen />}
       {screen === "balance" && <BalanceScreen />}
-      {screen === "inventory" && role === "admin" && <InventoryScreen />}
+      {screen === "inventory" && role === "admin" && settings.useInventory && (
+        <InventoryScreen />
+      )}
       {screen === "users" && role === "admin" && <UsersScreen />}
+      {screen === "settings" && role === "admin" && <SettingsScreen />}
     </AppShell>
   );
 }
@@ -94,18 +119,18 @@ function App() {
   if (isPending && !isRefetching) {
     return (
       <div className="login-page">
-        <p className="boot">Opening Delhi Malik Nihari…</p>
+        <p className="boot">Opening {loadSettings().restaurantName}…</p>
       </div>
     );
   }
 
-  if (!session) {
-    return <LoginScreen />;
-  }
-
   return (
     <PosProvider>
-      <SignedIn name={session.user.name} role={session.user.role} />
+      {session ? (
+        <SignedIn name={session.user.name} role={session.user.role} />
+      ) : (
+        <LoginScreen />
+      )}
     </PosProvider>
   );
 }

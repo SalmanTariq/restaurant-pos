@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { rupees, todayISO } from "../demo-data";
 import { authClient, clearAuthToken } from "../auth-client";
 import { usePos } from "../pos-store";
+import { BrandLockup } from "../layout/BrandLockup";
 import { SyncStatus } from "./SyncStatus";
 
 export function DayStartScreen({ openedBy }: { openedBy: string }) {
@@ -21,10 +22,7 @@ export function DayStartScreen({ openedBy }: { openedBy: string }) {
   return (
     <div className="login-page">
       <header className="topbar login-topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true" />
-          Delhi Malik Nihari
-        </div>
+        <BrandLockup />
         <SyncStatus />
       </header>
 

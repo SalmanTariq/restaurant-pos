@@ -1,5 +1,7 @@
-- Labor daily wages
-- Remove cash collection amount; It should just ask mode of payment and proceed.
-- Online instead of card
-- Balance sheet - date range
-- offline work + sync; (PWA?)
+add a settings page. 
+user should be able to 
+- Update logo and restaurant name
+- Mark if they need the petty cash insert at day start
+- Mark if they need the stock in inventory 
+
+Also, let's customize the bill reciept to include the Restaurant's logo at the top

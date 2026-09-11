@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode, type SVGProps } from "react";
 import { authClient, clearAuthToken } from "../auth-client";
 import { rupees } from "../demo-data";
+import { BrandLockup } from "./BrandLockup";
 import { usePos } from "../pos-store";
 import { SyncStatus } from "../screens/SyncStatus";
 import type { Screen } from "../pos-types";
@@ -98,17 +99,23 @@ export function AppShell({
   onScreen: (screen: Screen) => void;
   children: ReactNode;
 }) {
-  const { todayOpen } = usePos();
+  const { todayOpen, settings } = usePos();
   const [moreOpen, setMoreOpen] = useState(false);
   const displayRole = role === "admin" ? "Admin" : "Cashier";
-  const moreItems =
-    role === "admin"
-      ? [...MORE, { id: "inventory" as const, label: "Inventory" }, { id: "users" as const, label: "Users" }]
-      : MORE;
+  const moreItems = [
+    ...MORE,
+    ...(role === "admin" && settings.useInventory
+      ? [{ id: "inventory" as const, label: "Inventory" }]
+      : []),
+    ...(role === "admin" ? [{ id: "users" as const, label: "Users" }] : []),
+    ...(role === "admin" ? [{ id: "settings" as const, label: "Settings" }] : []),
+  ];
   const desktopItems = [...PRIMARY, ...moreItems];
   const moreActive = moreItems.some((item) => item.id === screen);
   const dayLine = `Day since ${shiftLabel(todayOpen?.openedAt)}${
-    todayOpen ? ` · petty ${rupees(todayOpen.pettyCash)}` : ""
+    todayOpen && settings.requirePettyCash
+      ? ` · petty ${rupees(todayOpen.pettyCash)}`
+      : ""
   }`;
 
   useEffect(() => {
@@ -132,11 +139,7 @@ export function AppShell({
   return (
     <div className={moreOpen ? "shell is-more-open" : "shell"}>
       <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true" />
-          <span className="brand-full">Delhi Malik Nihari</span>
-          <span className="brand-short">DMN</span>
-        </div>
+        <BrandLockup />
         <nav className="nav" aria-label="Main">
           {desktopItems.map((item) => (
             <button

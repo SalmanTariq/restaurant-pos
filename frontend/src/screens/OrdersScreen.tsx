@@ -23,6 +23,7 @@ export function OrdersScreen({
     bumpOrderItem,
     billOrder,
     payOrder,
+    settings,
   } = usePos();
   const [selectedId, setSelectedId] = useState<string | null>(
     focusOrderId ?? activeOrders[0]?.id ?? null,
@@ -137,7 +138,7 @@ export function OrdersScreen({
                   className="btn-ink"
                   disabled={selected.lines.length === 0}
                   onClick={() => {
-                    printGuestBill(selected);
+                    printGuestBill(selected, settings);
                     billOrder(selected.id);
                   }}
                 >
@@ -178,20 +179,23 @@ export function OrdersScreen({
               <div className="item-grid dense">
                 {items.map((item) => {
                   const left = available(item.id);
+                  const soldOut = settings.useInventory && left <= 0;
                   return (
                     <button
                       key={item.id}
                       type="button"
-                      className={left <= 0 ? "item-card is-out" : "item-card"}
-                      disabled={left <= 0}
+                      className={soldOut ? "item-card is-out" : "item-card"}
+                      disabled={soldOut}
                       onClick={() => addItemToOrder(selected.id, item)}
                     >
                       <span>{item.name}</span>
                       <span className="item-meta">
                         <strong>{rupees(item.price)}</strong>
-                        <em className={["stock-count", stockTone(left)].filter(Boolean).join(" ")}>
-                          {stockLabel(left)}
-                        </em>
+                        {settings.useInventory ? (
+                          <em className={["stock-count", stockTone(left)].filter(Boolean).join(" ")}>
+                            {stockLabel(left)}
+                          </em>
+                        ) : null}
                       </span>
                     </button>
                   );
