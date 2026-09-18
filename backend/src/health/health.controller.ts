@@ -10,13 +10,13 @@ export class HealthController {
   @Get()
   async check() {
     const rows = (await this.dataSource.query(
-      'SELECT sqlite_version() AS version',
+      'SELECT VERSION() AS version',
     )) as Array<{ version: string }>;
 
     return {
       status: 'ok',
-      database: 'sqlite',
-      sqliteVersion: rows[0]?.version,
+      database: 'mysql',
+      mysqlVersion: rows[0]?.version,
     };
   }
 }

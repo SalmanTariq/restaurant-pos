@@ -1,7 +1,8 @@
 import type { PosSettings } from "./pos-types";
+import { readTenantItem } from "./tenant-storage";
 
 export const SETTINGS_KEY = "dmn_pos_settings";
-export const DEFAULT_RESTAURANT_NAME = "Delhi Malik Nihari";
+export const DEFAULT_RESTAURANT_NAME = "Restaurant";
 
 export const DEFAULT_SETTINGS: PosSettings = {
   restaurantName: DEFAULT_RESTAURANT_NAME,
@@ -52,9 +53,10 @@ function asSettings(value: unknown): PosSettings {
   };
 }
 
-export function loadSettings(): PosSettings {
+export function loadSettings(restaurantId?: string | null): PosSettings {
+  if (!restaurantId) return { ...DEFAULT_SETTINGS };
   try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
+    const raw = readTenantItem(SETTINGS_KEY, restaurantId);
     if (!raw) return { ...DEFAULT_SETTINGS };
     return asSettings(JSON.parse(raw) as unknown);
   } catch {

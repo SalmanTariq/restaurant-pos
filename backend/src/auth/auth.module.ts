@@ -27,15 +27,15 @@ export class AuthModule implements NestModule, OnModuleInit, OnModuleDestroy {
     await runAuthMigrations();
   }
 
-  onModuleDestroy() {
-    closeAuth();
+  async onModuleDestroy() {
+    await closeAuth();
   }
 
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(BetterAuthMiddleware).forRoutes('*');
 
     consumer
-      .apply(json(), urlencoded({ extended: true }))
+      .apply(json({ limit: '2mb' }), urlencoded({ extended: true, limit: '2mb' }))
       .exclude({ path: 'api/auth/(.*)', method: RequestMethod.ALL })
       .forRoutes('*');
   }

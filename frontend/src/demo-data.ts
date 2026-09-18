@@ -6,6 +6,7 @@ import type {
   TableLayout,
   TokenTicket,
 } from "./pos-types";
+import { readTenantItem } from "./tenant-storage";
 
 export const CATEGORIES = [
   "Karahi",
@@ -92,9 +93,9 @@ function asLayoutPiece(entry: TableLayout): TableLayout | null {
   };
 }
 
-export function loadLayout(): TableLayout[] {
+export function loadLayout(restaurantId: string): TableLayout[] {
   try {
-    const raw = localStorage.getItem(LAYOUT_KEY);
+    const raw = readTenantItem(LAYOUT_KEY, restaurantId);
     if (!raw) return DEFAULT_FLOOR;
     const parsed = JSON.parse(raw) as TableLayout[];
     if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_FLOOR;

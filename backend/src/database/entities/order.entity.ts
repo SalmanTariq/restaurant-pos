@@ -14,10 +14,17 @@ import { OrderStatus, OrderType, PaymentMethod } from './enums';
 import { MenuItem } from './menu-item.entity';
 
 @Entity('orders')
-@Index(['businessDate', 'tokenNumber'], { unique: true })
+@Index(['restaurantId', 'businessDate', 'tokenNumber'], { unique: true })
+@Index(['restaurantId', 'clientId'], { unique: true })
 export class Order {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @Column()
+  restaurantId: string;
+
+  @Column()
+  clientId: string;
 
   @Column()
   tokenNumber: number;
@@ -34,6 +41,12 @@ export class Order {
 
   @Column({ type: 'varchar', nullable: true })
   tableNumber: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  tableId: string | null;
+
+  @Column({ type: 'varchar', default: '' })
+  clockTime: string;
 
   @Column({ type: 'varchar', default: OrderStatus.OPEN })
   status: OrderStatus;
@@ -75,6 +88,9 @@ export class OrderItem {
 
   @Column()
   name: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  clientItemId: string | null;
 
   @Column({ type: 'int' })
   quantity: number;

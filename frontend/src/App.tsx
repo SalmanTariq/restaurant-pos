@@ -10,10 +10,10 @@ import { OrdersScreen } from "./screens/OrdersScreen";
 import { SalesScreen } from "./screens/SalesScreen";
 import { BalanceScreen } from "./screens/BalanceScreen";
 import { DayStartScreen } from "./screens/DayStartScreen";
+import { PlatformScreen } from "./screens/PlatformScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { TablesScreen } from "./screens/TablesScreen";
 import { UsersScreen } from "./screens/UsersScreen";
-import { loadSettings } from "./settings";
 import type { CartLine, OrderType, Screen } from "./pos-types";
 import "./App.css";
 
@@ -24,7 +24,7 @@ function SignedIn({
   name: string;
   role?: string | null;
 }) {
-  const { tables, activeOrders, todayOpen, settings, startDay } = usePos();
+  const { ready, tables, activeOrders, todayOpen, settings, startDay } = usePos();
   const [screen, setScreen] = useState<Screen>("order");
   const [orderType, setOrderType] = useState<OrderType>("takeaway");
   const [tableId, setTableId] = useState<string | null>(null);
@@ -51,6 +51,14 @@ function SignedIn({
 
   function openTables() {
     setScreen("tables");
+  }
+
+  if (!ready) {
+    return (
+      <div className="login-page">
+        <p className="boot">Opening {settings.restaurantName}…</p>
+      </div>
+    );
   }
 
   if (settings.requirePettyCash && !todayOpen) {
@@ -115,22 +123,38 @@ function SignedIn({
 
 function App() {
   const { data: session, isPending, isRefetching } = authClient.useSession();
+  const role = session?.user.role;
+  const restaurantId = (
+    session?.user as { restaurantId?: string | null } | undefined
+  )?.restaurantId;
 
   if (isPending && !isRefetching) {
     return (
       <div className="login-page">
-        <p className="boot">Opening {loadSettings().restaurantName}…</p>
+        <p className="boot">Opening POS…</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <LoginScreen />;
+  }
+
+  if (role === "platform") {
+    return <PlatformScreen name={session.user.name} />;
+  }
+
+  if (!restaurantId) {
+    return (
+      <div className="login-page">
+        <p className="boot">This account is not linked to a restaurant.</p>
       </div>
     );
   }
 
   return (
-    <PosProvider>
-      {session ? (
-        <SignedIn name={session.user.name} role={session.user.role} />
-      ) : (
-        <LoginScreen />
-      )}
+    <PosProvider restaurantId={restaurantId}>
+      <SignedIn name={session.user.name} role={role} />
     </PosProvider>
   );
 }

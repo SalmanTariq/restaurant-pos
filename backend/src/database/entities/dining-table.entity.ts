@@ -2,16 +2,21 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
 @Entity('dining_tables')
+@Index(['restaurantId', 'tableNumber'], { unique: true })
 export class DiningTable {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column()
+  restaurantId: string;
+
+  @Column()
   tableNumber: string;
 
   @Column({ default: true })

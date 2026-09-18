@@ -270,8 +270,8 @@ select:focus-visible {
   font-weight: 700;
 }
 
-.login-card input,
-.users-form input,
+.login-card input:not([type="checkbox"]),
+.users-form input:not([type="checkbox"]),
 .users-form select {
   width: 100%;
   min-height: 48px;
@@ -1500,6 +1500,45 @@ select:focus-visible {
   grid-template-columns: 1fr 1.4fr 90px;
 }
 
+.shop-table header,
+.shop-table li {
+  grid-template-columns: 1.1fr 1.3fr 90px 1.1fr auto;
+}
+
+.shop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 12px;
+}
+
+.users-form .text-btn {
+  display: block;
+  margin-top: 12px;
+  color: var(--tandoor);
+  font-weight: 800;
+}
+
+.shop-status.is-active {
+  color: var(--pay);
+}
+
+.shop-status.is-disabled {
+  color: var(--danger);
+}
+
+.shop-table .text-btn {
+  color: var(--tandoor);
+  font-weight: 800;
+}
+
+.platform-shell .nav,
+.platform-shell .dock,
+.platform-shell .more-sheet,
+.platform-shell .more-scrim {
+  display: none;
+}
+
 .orders-layout {
   display: grid;
   grid-template-columns: 280px 1fr;
@@ -1669,15 +1708,47 @@ select:focus-visible {
 .check-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-height: 44px;
   margin: 16px 0 8px;
   font-weight: 700;
+  cursor: pointer;
 }
 
-.check-row input {
-  width: 20px;
-  height: 20px;
+.login-card .check-row,
+.users-form .check-row {
+  display: flex;
+  margin: 16px 0 8px;
+}
+
+.check-row input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  margin: 0;
+  flex-shrink: 0;
+  padding: 0;
+  border: 2px solid #c9bfb3;
+  border-radius: 6px;
+  background: #fbf8f4;
+  accent-color: var(--tandoor);
+  cursor: pointer;
+}
+
+.check-row input[type="checkbox"]:checked {
+  border-color: var(--tandoor-deep);
+  background-color: var(--tandoor);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.5 8.2 6.4 11.2 12.5 4.8' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px 14px;
+}
+
+.check-row input[type="checkbox"]:focus-visible {
+  outline: 3px solid rgba(217, 95, 2, 0.35);
+  outline-offset: 2px;
 }
 
 .table-link {

@@ -1,6 +1,6 @@
 {
-  "name": "Delhi Malik Nihari",
-  "short_name": "DMN POS",
+  "name": "Restaurant POS",
+  "short_name": "POS",
   "description": "Counter POS — works offline and saves on this device.",
   "start_url": "/",
   "scope": "/",

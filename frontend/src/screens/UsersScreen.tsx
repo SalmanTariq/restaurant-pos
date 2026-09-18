@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { authClient } from "../auth-client";
+import { api } from "../api";
 
 type ManagedUser = {
   id: string;
@@ -18,16 +18,13 @@ export function UsersScreen() {
   const [role, setRole] = useState<"cashier" | "admin">("cashier");
 
   async function loadUsers() {
-    const result = await authClient.admin.listUsers({
-      query: { limit: 100 },
-    });
-
-    if (result.error) {
-      setError(result.error.message ?? "Could not load users");
-      return;
+    try {
+      const result = await api<{ users: ManagedUser[] }>("/staff");
+      setUsers(result.users);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load users");
     }
-
-    setUsers(result.data.users);
   }
 
   useEffect(() => {
@@ -39,25 +36,21 @@ export function UsersScreen() {
     setError("");
     setPending(true);
 
-    const result = await authClient.admin.createUser({
-      name,
-      email,
-      password,
-      ...(role === "admin" ? { role: "admin" as const } : {}),
-    });
-
-    setPending(false);
-
-    if (result.error) {
-      setError(result.error.message ?? "Could not create user");
-      return;
+    try {
+      await api("/staff", {
+        method: "POST",
+        body: JSON.stringify({ name, email, password, role }),
+      });
+      setName("");
+      setEmail("");
+      setPassword("");
+      setRole("cashier");
+      await loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create user");
+    } finally {
+      setPending(false);
     }
-
-    setName("");
-    setEmail("");
-    setPassword("");
-    setRole("cashier");
-    await loadUsers();
   }
 
   return (

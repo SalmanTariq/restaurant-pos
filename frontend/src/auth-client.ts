@@ -1,10 +1,9 @@
 import { createAuthClient } from "better-auth/react";
 import { adminClient } from "better-auth/client/plugins";
-
-const TOKEN_KEY = "bearer_token";
+import { AUTH_TOKEN_KEY } from "./api";
 
 export function clearAuthToken() {
-  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
 export const authClient = createAuthClient({
@@ -14,12 +13,12 @@ export const authClient = createAuthClient({
     credentials: "include",
     auth: {
       type: "Bearer",
-      token: () => localStorage.getItem(TOKEN_KEY) ?? "",
+      token: () => localStorage.getItem(AUTH_TOKEN_KEY) ?? "",
     },
     onSuccess: (ctx) => {
       const token = ctx.response.headers.get("set-auth-token");
       if (token) {
-        localStorage.setItem(TOKEN_KEY, token);
+        localStorage.setItem(AUTH_TOKEN_KEY, token);
       }
     },
   },

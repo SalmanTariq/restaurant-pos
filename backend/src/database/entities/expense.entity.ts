@@ -2,14 +2,20 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
 @Entity('expenses')
+@Index(['restaurantId', 'date'])
+@Index(['restaurantId', 'clientId'], { unique: true })
 export class Expense {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @Column()
+  restaurantId: string;
 
   @Column()
   title: string;
@@ -25,6 +31,12 @@ export class Expense {
 
   @Column({ type: 'text', nullable: true })
   notes: string | null;
+
+  @Column()
+  clientId: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  staffId: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

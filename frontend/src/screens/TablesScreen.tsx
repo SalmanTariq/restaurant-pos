@@ -1,9 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import {
-  DEFAULT_FLOOR,
-  LAYOUT_KEY,
-  loadLayout,
-} from "../demo-data";
+import { DEFAULT_FLOOR } from "../demo-data";
 import { usePos } from "../pos-store";
 import type { DiningTable, TableLayout, TableStatus } from "../pos-types";
 
@@ -47,19 +43,16 @@ export function TablesScreen({
   onSelect: (id: string) => void;
   onBack: () => void;
 }) {
-  const { activeOrders, refreshFloor } = usePos();
-  const [layout, setLayout] = useState<TableLayout[]>(loadLayout);
+  const { layout, saveLayout, activeOrders } = usePos();
   const [removing, setRemoving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
   const floorRef = useRef<HTMLDivElement>(null);
 
-  function persist(next: TableLayout[], syncTables = false) {
+  function persist(next: TableLayout[], _syncTables = false) {
     layoutRef.current = next;
-    setLayout(next);
-    localStorage.setItem(LAYOUT_KEY, JSON.stringify(next));
-    if (syncTables) refreshFloor();
+    saveLayout(next);
   }
 
   function addTable() {

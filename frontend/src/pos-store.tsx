@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -10,11 +11,12 @@ import {
   diningFromLayout,
   lineTotal,
   loadLayout,
+  LAYOUT_KEY,
   MENU_ITEMS,
   NEXT_TOKEN,
   nowClock,
-  SEED_ORDERS,
   todayISO,
+  DEFAULT_FLOOR,
 } from "./demo-data";
 import type {
   CartLine,
@@ -24,11 +26,15 @@ import type {
   PaymentMethod,
   PosOrder,
   StaffMember,
+  TableLayout,
   TableStatus,
   DayOpen,
   PosSettings,
+  TillSnapshot,
 } from "./pos-types";
 import { SETTINGS_KEY, loadSettings } from "./settings";
+import { readTenantItem, writeTenantItem } from "./tenant-storage";
+import { api } from "./api";
 
 type PlaceInput = {
   type: PosOrder["type"];
@@ -39,10 +45,14 @@ type PlaceInput = {
 };
 
 type PosContextValue = {
+  restaurantId: string;
+  ready: boolean;
   menu: MenuItem[];
   orders: PosOrder[];
   nextToken: number;
   tables: DiningTable[];
+  layout: TableLayout[];
+  saveLayout: (layout: TableLayout[]) => void;
   activeOrders: PosOrder[];
   available: (itemId: string, extra?: CartLine[]) => number;
   onTickets: (itemId: string) => number;
@@ -66,11 +76,54 @@ type PosContextValue = {
   updateSettings: (patch: Partial<PosSettings>) => void;
 };
 
-const PosContext = createContext<PosContextValue | null>(null);
 const ORDERS_KEY = "dmn_pos_orders";
 const BOOKS_KEY = "dmn_pos_books";
 const DAYS_KEY = "dmn_pos_days";
 const MENU_KEY = "dmn_pos_menu";
+
+function localTill(restaurantId: string): TillSnapshot {
+  const saved = loadSavedOrders(restaurantId);
+  const books = loadBooks(restaurantId);
+  return {
+    menu: loadMenu(restaurantId),
+    orders: saved?.orders ?? [],
+    nextToken: saved?.nextToken ?? 1,
+    expenses: books.expenses,
+    staff: books.staff,
+    days: loadDays(restaurantId),
+    settings: loadSettings(restaurantId),
+    layout: loadLayout(restaurantId),
+  };
+}
+
+function tillHasWork(till: TillSnapshot) {
+  return (
+    till.orders.length > 0 ||
+    till.expenses.length > 0 ||
+    till.days.length > 0 ||
+    till.staff.length > 0 ||
+    till.menu.some((item) => item.stock > 0)
+  );
+}
+
+function cacheTill(restaurantId: string, till: TillSnapshot) {
+  writeTenantItem(
+    ORDERS_KEY,
+    restaurantId,
+    JSON.stringify({ orders: till.orders, nextToken: till.nextToken }),
+  );
+  writeTenantItem(
+    BOOKS_KEY,
+    restaurantId,
+    JSON.stringify({ expenses: till.expenses, staff: till.staff }),
+  );
+  writeTenantItem(DAYS_KEY, restaurantId, JSON.stringify(till.days));
+  writeTenantItem(MENU_KEY, restaurantId, JSON.stringify(till.menu));
+  writeTenantItem(SETTINGS_KEY, restaurantId, JSON.stringify(till.settings));
+  writeTenantItem(LAYOUT_KEY, restaurantId, JSON.stringify(till.layout));
+}
+
+const PosContext = createContext<PosContextValue | null>(null);
 
 function asMenuItem(value: unknown): MenuItem | null {
   if (!value || typeof value !== "object") return null;
@@ -91,10 +144,10 @@ function asMenuItem(value: unknown): MenuItem | null {
   };
 }
 
-function loadMenu(): MenuItem[] {
+function loadMenu(restaurantId: string): MenuItem[] {
   const catalog = MENU_ITEMS.map((item) => ({ ...item, stock: 0 }));
   try {
-    const raw = localStorage.getItem(MENU_KEY);
+    const raw = readTenantItem(MENU_KEY, restaurantId);
     if (!raw) return catalog;
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return catalog;
@@ -128,9 +181,11 @@ function normalizePayment(value: string | undefined): PaymentMethod | undefined 
   return undefined;
 }
 
-function loadSavedOrders(): { orders: PosOrder[]; nextToken: number } | null {
+function loadSavedOrders(
+  restaurantId: string,
+): { orders: PosOrder[]; nextToken: number } | null {
   try {
-    const raw = localStorage.getItem(ORDERS_KEY);
+    const raw = readTenantItem(ORDERS_KEY, restaurantId);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { orders?: PosOrder[]; nextToken?: number };
     if (!Array.isArray(parsed.orders)) return null;
@@ -149,9 +204,11 @@ function loadSavedOrders(): { orders: PosOrder[]; nextToken: number } | null {
   }
 }
 
-function loadBooks(): { expenses: ExpenseRow[]; staff: StaffMember[] } {
+function loadBooks(
+  restaurantId: string,
+): { expenses: ExpenseRow[]; staff: StaffMember[] } {
   try {
-    const raw = localStorage.getItem(BOOKS_KEY);
+    const raw = readTenantItem(BOOKS_KEY, restaurantId);
     if (!raw) return { expenses: [], staff: [] };
     const parsed = JSON.parse(raw) as {
       expenses?: ExpenseRow[];
@@ -166,9 +223,9 @@ function loadBooks(): { expenses: ExpenseRow[]; staff: StaffMember[] } {
   }
 }
 
-function loadDays(): DayOpen[] {
+function loadDays(restaurantId: string): DayOpen[] {
   try {
-    const raw = localStorage.getItem(DAYS_KEY);
+    const raw = readTenantItem(DAYS_KEY, restaurantId);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as DayOpen[];
     return Array.isArray(parsed) ? parsed : [];
@@ -202,41 +259,124 @@ function consumeStock(menu: MenuItem[], lines: CartLine[]) {
   });
 }
 
-export function PosProvider({ children }: { children: ReactNode }) {
-  const [menu, setMenu] = useState<MenuItem[]>(loadMenu);
+export function PosProvider({
+  restaurantId,
+  children,
+}: {
+  restaurantId: string;
+  children: ReactNode;
+}) {
+  const [ready, setReady] = useState(false);
+  const [menu, setMenu] = useState<MenuItem[]>(() => loadMenu(restaurantId));
   const [orders, setOrders] = useState<PosOrder[]>(
-    () => loadSavedOrders()?.orders ?? SEED_ORDERS,
+    () => loadSavedOrders(restaurantId)?.orders ?? [],
   );
   const [nextToken, setNextToken] = useState(
-    () => loadSavedOrders()?.nextToken ?? NEXT_TOKEN,
+    () => loadSavedOrders(restaurantId)?.nextToken ?? 1,
   );
-  const [floorRev, setFloorRev] = useState(0);
+  const [layout, setLayout] = useState<TableLayout[]>(() => {
+    const saved = loadLayout(restaurantId);
+    return saved.length > 0 ? saved : DEFAULT_FLOOR;
+  });
   const [expenses, setExpenses] = useState<ExpenseRow[]>(
-    () => loadBooks().expenses,
+    () => loadBooks(restaurantId).expenses,
   );
-  const [staff, setStaff] = useState<StaffMember[]>(() => loadBooks().staff);
-  const [days, setDays] = useState<DayOpen[]>(loadDays);
-  const [settings, setSettings] = useState<PosSettings>(loadSettings);
+  const [staff, setStaff] = useState<StaffMember[]>(
+    () => loadBooks(restaurantId).staff,
+  );
+  const [days, setDays] = useState<DayOpen[]>(() => loadDays(restaurantId));
+  const [settings, setSettings] = useState<PosSettings>(() =>
+    loadSettings(restaurantId),
+  );
+  const pendingTill = useRef<TillSnapshot | null>(null);
+
+  function applyTill(till: TillSnapshot) {
+    setMenu(till.menu);
+    setOrders(till.orders);
+    setNextToken(till.nextToken);
+    setLayout(till.layout.length > 0 ? till.layout : DEFAULT_FLOOR);
+    setExpenses(till.expenses);
+    setStaff(till.staff);
+    setDays(till.days);
+    setSettings(till.settings);
+    cacheTill(restaurantId, till);
+  }
 
   useEffect(() => {
-    localStorage.setItem(ORDERS_KEY, JSON.stringify({ orders, nextToken }));
-  }, [orders, nextToken]);
+    let cancelled = false;
+    async function load() {
+      try {
+        const remote = await api<TillSnapshot>("/till");
+        const local = localTill(restaurantId);
+        const migrate = !tillHasWork(remote) && tillHasWork(local);
+        const till = migrate ? local : remote;
+        if (migrate) {
+          await api("/till", {
+            method: "PUT",
+            body: JSON.stringify(local),
+          });
+        }
+        if (!cancelled) applyTill(till);
+      } catch {
+        if (!cancelled) applyTill(localTill(restaurantId));
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [restaurantId]);
 
   useEffect(() => {
-    localStorage.setItem(BOOKS_KEY, JSON.stringify({ expenses, staff }));
-  }, [expenses, staff]);
+    if (!ready) return;
+    const till: TillSnapshot = {
+      menu,
+      orders,
+      nextToken,
+      expenses,
+      staff,
+      days,
+      settings,
+      layout,
+    };
+    cacheTill(restaurantId, till);
+    pendingTill.current = till;
+    const timer = window.setTimeout(() => {
+      const payload = pendingTill.current;
+      pendingTill.current = null;
+      if (!payload) return;
+      void api("/till", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      }).catch(() => undefined);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [
+    ready,
+    restaurantId,
+    menu,
+    orders,
+    nextToken,
+    expenses,
+    staff,
+    days,
+    settings,
+    layout,
+  ]);
 
   useEffect(() => {
-    localStorage.setItem(DAYS_KEY, JSON.stringify(days));
-  }, [days]);
-
-  useEffect(() => {
-    localStorage.setItem(MENU_KEY, JSON.stringify(menu));
-  }, [menu]);
-
-  useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  }, [settings]);
+    return () => {
+      const payload = pendingTill.current;
+      if (!payload) return;
+      void api("/till", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+        keepalive: true,
+      }).catch(() => undefined);
+    };
+  }, []);
 
   useEffect(() => {
     document.title = settings.restaurantName;
@@ -248,7 +388,7 @@ export function PosProvider({ children }: { children: ReactNode }) {
   );
 
   const tables = useMemo<DiningTable[]>(() => {
-    return diningFromLayout(loadLayout()).map((table) => {
+    return diningFromLayout(layout).map((table) => {
       const order = activeOrders.find((entry) => entry.tableId === table.id);
       if (!order) {
         return { id: table.id, label: table.label, status: "free" as TableStatus };
@@ -260,10 +400,14 @@ export function PosProvider({ children }: { children: ReactNode }) {
         itemCount: order.lines.reduce((sum, line) => sum + line.qty, 0),
       };
     });
-  }, [activeOrders, floorRev]);
+  }, [activeOrders, layout]);
 
   function refreshFloor() {
-    setFloorRev((value) => value + 1);
+    setLayout((current) => [...current]);
+  }
+
+  function saveLayout(next: TableLayout[]) {
+    setLayout(next);
   }
 
   function available(itemId: string, extra: CartLine[] = []) {
@@ -450,10 +594,14 @@ export function PosProvider({ children }: { children: ReactNode }) {
   }
 
   const value: PosContextValue = {
+    restaurantId,
+    ready,
     menu,
     orders,
     nextToken,
     tables,
+    layout,
+    saveLayout,
     activeOrders,
     available,
     onTickets,
@@ -478,6 +626,10 @@ export function PosProvider({ children }: { children: ReactNode }) {
   };
 
   return <PosContext.Provider value={value}>{children}</PosContext.Provider>;
+}
+
+export function useOptionalPos() {
+  return useContext(PosContext);
 }
 
 export function usePos() {

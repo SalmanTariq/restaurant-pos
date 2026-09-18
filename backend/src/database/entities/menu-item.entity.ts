@@ -2,14 +2,26 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
 @Entity('menu_items')
+@Index(['restaurantId', 'name'])
+@Index(['restaurantId', 'clientId'], { unique: true })
 export class MenuItem {
   @PrimaryGeneratedColumn()
   id: number;
+
+  @Column()
+  restaurantId: string;
+
+  @Column()
+  clientId: string;
+
+  @Column({ type: 'int', default: 0 })
+  stock: number;
 
   @Column()
   name: string;

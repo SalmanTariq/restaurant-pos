@@ -111,3 +111,14 @@ export type PosOrder = {
   collected?: number;
   change?: number;
 };
+
+export type TillSnapshot = {
+  menu: MenuItem[];
+  orders: PosOrder[];
+  nextToken: number;
+  expenses: ExpenseRow[];
+  staff: StaffMember[];
+  days: DayOpen[];
+  settings: PosSettings;
+  layout: TableLayout[];
+};

@@ -35,11 +35,9 @@ export function LoginScreen() {
 
       <main className="login-main">
         <form className="login-card" onSubmit={onSubmit}>
-          <p className="login-kicker">Counter sign-in</p>
-          <h1>Open the till</h1>
-          <p className="login-lede urdu" lang="ur">
-            کاؤنٹر کھولیں
-          </p>
+          <p className="login-kicker">Staff sign-in</p>
+          <h1>Sign in</h1>
+          <p className="login-lede">Use the email your restaurant owner set up.</p>
 
           <label htmlFor="email">Email</label>
           <input
@@ -79,7 +77,6 @@ export function LoginScreen() {
 
           <button className="btn-tandoor" type="submit" disabled={pending}>
             {pending ? "Signing in…" : "Sign in"}
-            <span className="urdu">{pending ? "انتظار" : "داخل ہوں"}</span>
           </button>
         </form>
       </main>
