@@ -35,6 +35,9 @@ export class MenuItem {
   @Column({ default: true })
   isActive: boolean;
 
+  @Column({ type: 'mediumtext', nullable: true })
+  imageDataUrl: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

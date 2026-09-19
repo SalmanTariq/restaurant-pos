@@ -99,3 +99,39 @@ export function readLogoFile(file: File): Promise<string> {
     image.src = url;
   });
 }
+
+export function readDishPhotoFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith("image/")) {
+      reject(new Error("Choose a PNG or JPG photo."));
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      reject(new Error("Photo must be under 8 MB."));
+      return;
+    }
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+    image.onload = () => {
+      const max = 720;
+      const scale = Math.min(1, max / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        URL.revokeObjectURL(url);
+        reject(new Error("Could not read that photo."));
+        return;
+      }
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read that photo."));
+    };
+    image.src = url;
+  });
+}

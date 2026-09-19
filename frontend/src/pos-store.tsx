@@ -32,7 +32,7 @@ import type {
   PosSettings,
   TillSnapshot,
 } from "./pos-types";
-import { SETTINGS_KEY, loadSettings } from "./settings";
+import { SETTINGS_KEY, isLogoDataUrl, loadSettings } from "./settings";
 import { readTenantItem, writeTenantItem } from "./tenant-storage";
 import { api } from "./api";
 
@@ -141,6 +141,7 @@ function asMenuItem(value: unknown): MenuItem | null {
     price: entry.price,
     stock: Math.floor(stock),
     active: entry.active !== false,
+    imageDataUrl: isLogoDataUrl(entry.imageDataUrl) ? entry.imageDataUrl : null,
   };
 }
 
@@ -166,6 +167,7 @@ function loadMenu(restaurantId: string): MenuItem[] {
             price: prev.price,
             stock: prev.stock,
             active: prev.active,
+            imageDataUrl: prev.imageDataUrl ?? null,
           }
         : item;
     });

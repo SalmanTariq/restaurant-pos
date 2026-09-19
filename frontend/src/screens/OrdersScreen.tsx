@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { CATEGORIES, lineTotal, rupees, stockLabel, stockTone } from "../demo-data";
+import { CATEGORIES, lineTotal, rupees, stockLabel } from "../demo-data";
 import { usePos } from "../pos-store";
 import type { PosOrder } from "../pos-types";
 import { printGuestBill } from "../print-bill";
 import { PayDialog } from "./PayDialog";
+import { MenuItemCard } from "./MenuItemCard";
 
 function statusLabel(order: PosOrder) {
   if (order.status === "billed") return "Bill printed";
@@ -176,28 +177,20 @@ export function OrdersScreen({
                   </button>
                 ))}
               </div>
-              <div className="item-grid dense">
+              <div className="item-grid photo-board">
                 {items.map((item) => {
                   const left = available(item.id);
                   const soldOut = settings.useInventory && left <= 0;
                   return (
-                    <button
+                    <MenuItemCard
                       key={item.id}
-                      type="button"
-                      className={soldOut ? "item-card is-out" : "item-card"}
-                      disabled={soldOut}
-                      onClick={() => addItemToOrder(selected.id, item)}
-                    >
-                      <span>{item.name}</span>
-                      <span className="item-meta">
-                        <strong>{rupees(item.price)}</strong>
-                        {settings.useInventory ? (
-                          <em className={["stock-count", stockTone(left)].filter(Boolean).join(" ")}>
-                            {stockLabel(left)}
-                          </em>
-                        ) : null}
-                      </span>
-                    </button>
+                      item={item}
+                      soldOut={soldOut}
+                      prominent
+                      stockLeft={left}
+                      stockText={settings.useInventory ? stockLabel(left) : null}
+                      onAdd={() => addItemToOrder(selected.id, item)}
+                    />
                   );
                 })}
               </div>

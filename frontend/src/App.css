@@ -449,7 +449,81 @@ select:focus-visible {
 }
 
 .item-card.is-out {
-  opacity: 0.45;
+  opacity: 1;
+}
+
+.item-card.has-photo {
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  gap: 0;
+  justify-content: flex-start;
+}
+
+.item-photo {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  background:
+    radial-gradient(circle at 50% 30%, #ffb25a, var(--tandoor) 55%, #7a2e00);
+}
+
+.item-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.item-photo-fallback {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: #fff;
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.item-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 14px;
+}
+
+.item-name {
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.item-card.is-photo-lg .item-photo {
+  aspect-ratio: 1 / 1;
+}
+
+.item-card.is-photo-lg .item-name {
+  font-size: 20px;
+}
+
+.item-card.is-out .item-photo::after {
+  content: "Sold out";
+  position: absolute;
+  inset: auto 10px 10px auto;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.item-card.is-out .item-photo {
+  filter: grayscale(0.55);
+}
+
+.item-grid.photo-board {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
 }
 
 .ticket {
@@ -1296,8 +1370,26 @@ select:focus-visible {
 .cook-head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
+}
+
+.cook-thumb {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 12px;
+  background: var(--cream);
+}
+
+.cook-thumb.is-empty {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 800;
+  background:
+    radial-gradient(circle at 50% 30%, #ffb25a, var(--tandoor) 55%, #7a2e00);
 }
 
 .cook-name {
@@ -1305,6 +1397,8 @@ select:focus-visible {
   gap: 2px;
   margin: 0;
   text-align: left;
+  flex: 1;
+  min-width: 0;
 }
 
 .cook-edit {
@@ -1425,6 +1519,16 @@ select:focus-visible {
   display: block;
   background:
     radial-gradient(circle at 50% 30%, #ffb25a, var(--tandoor) 55%, #7a2e00);
+}
+
+.dish-preview {
+  object-fit: cover;
+}
+
+.dish-photo-label {
+  display: block;
+  margin: 14px 0 6px;
+  font-weight: 700;
 }
 
 .logo-actions {
@@ -2020,9 +2124,19 @@ select:focus-visible {
     gap: 10px;
   }
 
+  .item-grid.photo-board {
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 12px;
+  }
+
   .item-card {
     min-height: 96px;
     padding: 14px;
+  }
+
+  .item-card.has-photo {
+    min-height: 0;
+    padding: 0;
   }
 
   .ticket-dock {

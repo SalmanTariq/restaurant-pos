@@ -20,6 +20,7 @@ export type MenuItem = {
   price: number;
   stock: number;
   active: boolean;
+  imageDataUrl?: string | null;
 };
 
 export type CartLine = {

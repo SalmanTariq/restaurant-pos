@@ -18,6 +18,7 @@ export type TillMenuItem = {
   price: number;
   stock: number;
   active: boolean;
+  imageDataUrl: string | null;
 };
 
 export type TillLine = {
@@ -165,6 +166,7 @@ export class TillService {
         price: money(item.salePrice),
         stock: item.stock,
         active: item.isActive,
+        imageDataUrl: item.imageDataUrl,
       })),
       orders: orders.map((order) => this.toOrder(order)),
       nextToken: restaurant.nextToken || 1,
@@ -238,6 +240,7 @@ export class TillService {
             salePrice: moneyStr(item.price),
             stock: item.stock,
             isActive: item.active,
+            imageDataUrl: item.imageDataUrl,
           }),
         ),
       );
@@ -447,14 +450,19 @@ export class TillService {
         : 'Restaurant';
     const logo = body.settings?.logoDataUrl ?? null;
     return {
-      menu: body.menu.map((item, index) => ({
-        id: String(item?.id || `item-${index}`),
-        name: String(item?.name || 'Item').trim() || 'Item',
-        category: String(item?.category || 'Other'),
-        price: Math.max(0, money(item?.price)),
-        stock: Math.max(0, Math.floor(money(item?.stock))),
-        active: item?.active !== false,
-      })),
+      menu: body.menu.map((item, index) => {
+        const image = item?.imageDataUrl ?? null;
+        return {
+          id: String(item?.id || `item-${index}`),
+          name: String(item?.name || 'Item').trim() || 'Item',
+          category: String(item?.category || 'Other'),
+          price: Math.max(0, money(item?.price)),
+          stock: Math.max(0, Math.floor(money(item?.stock))),
+          active: item?.active !== false,
+          imageDataUrl:
+            typeof image === 'string' && LOGO_PATTERN.test(image) ? image : null,
+        };
+      }),
       orders: Array.isArray(body.orders)
         ? body.orders.map((order, index) => this.normalizeOrder(order, index))
         : [],

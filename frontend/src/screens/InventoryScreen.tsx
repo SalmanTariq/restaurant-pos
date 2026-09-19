@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState } from "react";
 import { CATEGORIES, stockLabel, stockTone } from "../demo-data";
 import { usePos } from "../pos-store";
 import type { MenuItem } from "../pos-types";
+import { isLogoDataUrl, readDishPhotoFile } from "../settings";
 
 const emptyForm = {
   id: "",
@@ -10,6 +11,7 @@ const emptyForm = {
   price: "",
   remaining: "0",
   active: true,
+  imageDataUrl: null as string | null,
 };
 
 export function InventoryScreen() {
@@ -17,6 +19,7 @@ export function InventoryScreen() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [form, setForm] = useState(emptyForm);
+  const [photoError, setPhotoError] = useState("");
   const [cookQty, setCookQty] = useState<Record<string, string>>({});
   const editing = Boolean(form.id);
 
@@ -40,6 +43,7 @@ export function InventoryScreen() {
       price: String(item.price),
       remaining: String(available(item.id)),
       active: item.active,
+      imageDataUrl: isLogoDataUrl(item.imageDataUrl) ? item.imageDataUrl : null,
     });
     requestAnimationFrame(() => {
       document.getElementById("inv-editor")?.scrollIntoView({
@@ -80,6 +84,7 @@ export function InventoryScreen() {
       price,
       stock: Math.floor(remaining) + held,
       active: form.active,
+      imageDataUrl: form.imageDataUrl,
     });
     setForm(emptyForm);
   }
@@ -134,6 +139,17 @@ export function InventoryScreen() {
               className={form.id === item.id ? "cook-card is-editing" : "cook-card"}
             >
               <div className="cook-head">
+                {item.imageDataUrl ? (
+                  <img
+                    className="cook-thumb"
+                    src={item.imageDataUrl}
+                    alt=""
+                  />
+                ) : (
+                  <span className="cook-thumb is-empty" aria-hidden="true">
+                    {item.name.slice(0, 1)}
+                  </span>
+                )}
                 <p className="cook-name">
                   <strong>{item.name}</strong>
                   <span>
@@ -246,6 +262,65 @@ export function InventoryScreen() {
           }
           required
         />
+        <span className="dish-photo-label" id="inv-photo-label">
+          Item photo
+        </span>
+        <div className="logo-row dish-photo-row">
+          {form.imageDataUrl ? (
+            <img
+              className="logo-preview dish-preview"
+              src={form.imageDataUrl}
+              alt={`${form.name || "Item"} photo`}
+            />
+          ) : (
+            <span className="logo-preview is-empty dish-preview" aria-hidden="true" />
+          )}
+          <div className="logo-actions">
+            <label className="cook-edit logo-file">
+              {form.imageDataUrl ? "Replace photo" : "Add photo"}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = "";
+                  if (!file) return;
+                  setPhotoError("");
+                  void readDishPhotoFile(file)
+                    .then((imageDataUrl) => {
+                      setForm((current) => ({ ...current, imageDataUrl }));
+                    })
+                    .catch((error: unknown) => {
+                      setPhotoError(
+                        error instanceof Error
+                          ? error.message
+                          : "Could not use that photo.",
+                      );
+                    });
+                }}
+              />
+            </label>
+            {form.imageDataUrl ? (
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() =>
+                  setForm((current) => ({ ...current, imageDataUrl: null }))
+                }
+              >
+                Remove photo
+              </button>
+            ) : null}
+          </div>
+        </div>
+        {photoError ? (
+          <p className="auth-error" role="alert">
+            {photoError}
+          </p>
+        ) : null}
+        <p className="subhead">
+          A clear plate photo helps staff find the dish on the Orders screen.
+        </p>
         <label className="check-row" htmlFor="inv-active">
           <input
             id="inv-active"

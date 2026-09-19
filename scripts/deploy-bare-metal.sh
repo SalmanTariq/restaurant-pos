@@ -311,7 +311,7 @@ EOF
 
 nginx_locations() {
   cat <<'EOF'
-    client_max_body_size 4m;
+    client_max_body_size 12m;
     root INSTALL_DIR_PLACEHOLDER/frontend/dist;
     index index.html;
 
