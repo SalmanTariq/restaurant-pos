@@ -1286,10 +1286,49 @@ select:focus-visible {
   color: #0a5f8a;
 }
 
-.empty-cell {
-  text-align: center;
+.sale-row {
+  cursor: pointer;
+}
+
+.sale-row.is-open,
+.sale-row:hover {
+  background: #fff8f1;
+}
+
+.row-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.data-table .text-btn {
+  color: var(--tandoor);
+  font-weight: 800;
+}
+
+.sale-modal {
+  width: min(480px, 100%);
+}
+
+.sale-lines {
+  margin: 16px 0 0;
+}
+
+.sale-lines li {
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.sale-lines em {
+  font-style: normal;
+  font-weight: 600;
   color: var(--ink-soft);
-  padding: 32px 16px !important;
+}
+
+.sale-total {
+  display: flex;
+  justify-content: space-between;
+  margin: 16px 0 0;
+  font-size: 20px;
 }
 
 .top-items {
@@ -1935,6 +1974,50 @@ select:focus-visible {
   color: #fff;
 }
 
+.rail-card.is-paid {
+  background: #1d3d2c;
+  color: #e8f6ee;
+}
+
+.order-rail-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.rail-tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: #2a2724;
+  color: #cfc4ba;
+  font-weight: 800;
+}
+
+.rail-tab em {
+  font-style: normal;
+  color: #fff;
+}
+
+.rail-tab.is-active {
+  background: #fff;
+  color: var(--ink);
+}
+
+.rail-tab.is-active em {
+  color: var(--ink);
+}
+
+.rail-empty {
+  margin: 8px 4px 0;
+  color: #8d8278;
+  font-weight: 700;
+}
+
 .rail-card.is-picked {
   box-shadow: 0 0 0 3px #fff;
 }
@@ -1958,6 +2041,29 @@ select:focus-visible {
   gap: 16px;
   min-height: 0;
   height: calc(100dvh - var(--topbar-h) - var(--dock-h) - 120px);
+}
+
+.desk-grid.is-past {
+  grid-template-columns: minmax(280px, 360px) minmax(220px, 1fr);
+}
+
+.past-note {
+  padding: 28px 24px;
+  border: 1px dashed var(--line);
+  border-radius: 20px;
+  background: #fff;
+  align-self: start;
+}
+
+.past-note h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+
+.past-note p {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.45;
 }
 
 .desk-ticket {
@@ -2538,9 +2644,14 @@ select:focus-visible {
 
   .order-rail {
     flex-direction: row;
+    flex-wrap: wrap;
     overflow-x: auto;
     padding: 12px;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .order-rail-tabs {
+    flex: 1 0 100%;
   }
 
   .rail-card {

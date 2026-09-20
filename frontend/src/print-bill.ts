@@ -78,7 +78,7 @@ export function printGuestBill(
       <div class="meta">
         <div>Token ${order.token}</div>
         <div>${escapeHtml(where)}</div>
-        <div>${escapeHtml(order.time)}</div>
+        <div>${escapeHtml(order.date)} · ${escapeHtml(order.time)}</div>
       </div>
       <table>
         <thead><tr><th>Item</th><th></th><th>Amount</th></tr></thead>

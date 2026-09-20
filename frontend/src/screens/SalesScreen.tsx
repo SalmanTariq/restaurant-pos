@@ -16,6 +16,7 @@ import {
 } from "../export-report";
 import { DateRangeFields } from "./DateRangeFields";
 import { ExportButtons } from "./ExportButtons";
+import { printGuestBill } from "../print-bill";
 import { restaurantSlug } from "../settings";
 
 function clockFromIso(value?: string) {
@@ -68,6 +69,7 @@ export function SalesScreen({
   const [query, setQuery] = useState("");
   const [payment, setPayment] = useState<"all" | PaymentMethod>("all");
   const [orderType, setOrderType] = useState<"all" | OrderType>("all");
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const paid = useMemo(
     () => orders.filter((order) => order.status === "paid" && order.payment),
@@ -118,6 +120,11 @@ export function SalesScreen({
   }, [dated, query, payment, orderType]);
 
   const filteredTotal = rows.reduce((sum, row) => sum + row.total, 0);
+  const openOrder = inRange.find((order) => order.id === openId) ?? null;
+
+  function reprint(order: PosOrder) {
+    printGuestBill(order, settings);
+  }
 
   function exportSales(format: ExportFormat) {
     downloadReport(
@@ -153,11 +160,26 @@ export function SalesScreen({
             {from === to ? from : `${from} → ${to}`}
             {from === today && to === today && todayOpen
               ? ` — day opened ${clockFromIso(todayOpen.openedAt)}.`
-              : "."}
+              : "."}{" "}
+            Open a paid order to reprint the guest bill.
           </p>
         </div>
         <div className="head-tools">
-          <DateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} />
+          <div className="range-row">
+            <DateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} />
+            <button
+              type="button"
+              className="range-today"
+              disabled={from === today && to === today}
+              onClick={() => {
+                const day = todayISO();
+                setFrom(day);
+                setTo(day);
+              }}
+            >
+              Today
+            </button>
+          </div>
           <ExportButtons disabled={rows.length === 0} onExport={exportSales} />
           <div className="dash-kpis">
             {settings.requirePettyCash ? (
@@ -272,18 +294,23 @@ export function SalesScreen({
                 <th>Items</th>
                 <th>Payment</th>
                 <th>Amount</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="empty-cell">
+                  <td colSpan={8} className="empty-cell">
                     No paid orders in this range yet.
                   </td>
                 </tr>
               ) : (
                 rows.map((row) => (
-                  <tr key={row.id}>
+                  <tr
+                    key={row.id}
+                    className={openId === row.id ? "sale-row is-open" : "sale-row"}
+                    onClick={() => setOpenId(row.id)}
+                  >
                     <td>#{row.token}</td>
                     <td>{row.date}</td>
                     <td>{row.time}</td>
@@ -299,6 +326,19 @@ export function SalesScreen({
                       </span>
                     </td>
                     <td className="num">{rupees(row.total)}</td>
+                    <td className="row-actions">
+                      <button
+                        type="button"
+                        className="text-btn"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          const order = inRange.find((entry) => entry.id === row.id);
+                          if (order) reprint(order);
+                        }}
+                      >
+                        Print bill
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -306,6 +346,58 @@ export function SalesScreen({
           </table>
         </div>
       </section>
+
+      {openOrder ? (
+        <div className="modal-backdrop" onClick={() => setOpenId(null)}>
+          <div
+            className="modal sale-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="past-order-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="past-order-title">Token {openOrder.token}</h2>
+            <p className="subhead">
+              {openOrder.type === "dine-in"
+                ? `Table ${openOrder.tableId}`
+                : "Takeaway"}
+              {` · ${openOrder.date} · ${openOrder.time}`}
+              {openOrder.payment
+                ? ` · paid ${openOrder.payment}`
+                : ""}
+            </p>
+            <ul className="ticket-lines sale-lines">
+              {openOrder.lines.map((line) => (
+                <li key={line.id}>
+                  <span>
+                    {line.name}
+                    <em> × {line.qty}</em>
+                  </span>
+                  <strong>{rupees(line.price * line.qty)}</strong>
+                </li>
+              ))}
+            </ul>
+            <p className="sale-total">
+              <span>Total</span>
+              <strong>{rupees(lineTotal(openOrder.lines))}</strong>
+            </p>
+            <button
+              className="btn-ink"
+              type="button"
+              onClick={() => reprint(openOrder)}
+            >
+              Print bill
+            </button>
+            <button
+              className="ghost-btn modal-cancel"
+              type="button"
+              onClick={() => setOpenId(null)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
