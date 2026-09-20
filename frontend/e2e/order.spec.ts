@@ -21,6 +21,7 @@ test.describe("order till", () => {
     await page.getByRole("button", { name: /Send to orders/ }).click();
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Orders" }).click();
     await expect(page.getByRole("heading", { name: "Token 8" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Print kitchen/ })).toBeVisible();
   });
 
   test("opens dine-in tables from the order type toggle", async ({ page }) => {

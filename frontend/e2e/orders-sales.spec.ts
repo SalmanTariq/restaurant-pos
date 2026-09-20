@@ -11,6 +11,7 @@ test.describe("paid orders", () => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Orders" }).click();
     await page.getByRole("tab", { name: /Paid/ }).click();
     await expect(page.getByRole("heading", { name: "Token 7" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Print kitchen/ })).toBeVisible();
     await expect(page.getByRole("button", { name: /Print bill/ })).toBeVisible();
   });
 

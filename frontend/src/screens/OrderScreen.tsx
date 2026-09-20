@@ -3,7 +3,7 @@ import { lineTotal, rupees, stockLabel } from "../demo-data";
 import { groupMenuSections, MenuSectionList, useMenuScroll } from "../menu-board";
 import { usePos } from "../pos-store";
 import type { CartLine, OrderType } from "../pos-types";
-import { printGuestBill } from "../print-bill";
+import { printGuestBill, printKitchenToken } from "../print-bill";
 import { PayDialog } from "./PayDialog";
 import { MenuItemCard } from "./MenuItemCard";
 
@@ -81,12 +81,13 @@ export function OrderScreen({
 
   function sendTicket() {
     if (cart.length === 0 || !requireTable()) return;
-    placeOrder({
+    const order = placeOrder({
       type: orderType,
       tableId,
       lines: cart,
       status: "open",
     });
+    void printKitchenToken(order, settings);
     onCart([]);
     setTicketOpen(false);
   }
@@ -272,7 +273,9 @@ export function OrderScreen({
               status: "paid",
               payment,
             });
-            printGuestBill(order, settings);
+            void printKitchenToken(order, settings).then(() =>
+              printGuestBill(order, settings),
+            );
             onCart([]);
             setTicketOpen(false);
           }}

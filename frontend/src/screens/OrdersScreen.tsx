@@ -3,7 +3,7 @@ import { lineTotal, rupees, stockLabel } from "../demo-data";
 import { groupMenuSections, MenuSectionList, useMenuScroll } from "../menu-board";
 import { usePos } from "../pos-store";
 import type { PosOrder } from "../pos-types";
-import { printGuestBill } from "../print-bill";
+import { printGuestBill, printKitchenToken } from "../print-bill";
 import { PayDialog } from "./PayDialog";
 import { MenuItemCard } from "./MenuItemCard";
 
@@ -214,17 +214,37 @@ export function OrdersScreen({
               </div>
               <div className="ticket-foot">
                 {past ? (
-                  <button
-                    type="button"
-                    className="btn-ink"
-                    disabled={selected.lines.length === 0}
-                    onClick={() => printGuestBill(selected, settings)}
-                  >
-                    Print bill
-                    <span className="urdu">بل</span>
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="btn-ink"
+                      disabled={selected.lines.length === 0}
+                      onClick={() => printKitchenToken(selected, settings)}
+                    >
+                      Print kitchen
+                      <span className="urdu">کچن</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-ink"
+                      disabled={selected.lines.length === 0}
+                      onClick={() => printGuestBill(selected, settings)}
+                    >
+                      Print bill
+                      <span className="urdu">بل</span>
+                    </button>
+                  </>
                 ) : (
                   <>
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      disabled={selected.lines.length === 0}
+                      onClick={() => printKitchenToken(selected, settings)}
+                    >
+                      Print kitchen
+                      <span className="urdu">کچن</span>
+                    </button>
                     <button
                       type="button"
                       className="btn-ink"
@@ -261,8 +281,9 @@ export function OrdersScreen({
               <div className="past-note">
                 <h2>Guest copy</h2>
                 <p>
-                  This order is closed. Print the bill again if they need another
-                  copy. Change the date range on Sales to find older tickets.
+                  This order is closed. Print the kitchen token or guest bill
+                  again if they need another copy. Change the date range on Sales
+                  to find older tickets.
                 </p>
               </div>
             ) : (

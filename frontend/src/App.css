@@ -579,6 +579,10 @@ select:focus-visible {
   padding: 18px 18px 12px;
 }
 
+.ticket-foot .ghost-btn {
+  width: 100%;
+}
+
 .ticket-kicker {
   margin: 0;
   font-size: 11px;
