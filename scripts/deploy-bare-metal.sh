@@ -270,6 +270,7 @@ harden_mysql() {
 [mysqld]
 bind-address = 127.0.0.1
 innodb_buffer_pool_size = 128M
+max_allowed_packet = 64M
 performance_schema = OFF
 EOF
   systemctl restart mysql 2>/dev/null || systemctl restart mariadb
@@ -353,7 +354,7 @@ EOF
 
 nginx_locations() {
   cat <<'EOF'
-    client_max_body_size 12m;
+    client_max_body_size 32m;
     root INSTALL_DIR_PLACEHOLDER/frontend/dist;
     index index.html;
 

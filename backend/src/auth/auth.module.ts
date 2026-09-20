@@ -35,7 +35,7 @@ export class AuthModule implements NestModule, OnModuleInit, OnModuleDestroy {
     consumer.apply(BetterAuthMiddleware).forRoutes('*');
 
     consumer
-      .apply(json({ limit: '12mb' }), urlencoded({ extended: true, limit: '12mb' }))
+      .apply(json({ limit: '32mb' }), urlencoded({ extended: true, limit: '32mb' }))
       .exclude({ path: 'api/auth/(.*)', method: RequestMethod.ALL })
       .forRoutes('*');
   }

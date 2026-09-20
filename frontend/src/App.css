@@ -1463,7 +1463,7 @@ select:focus-visible {
   gap: 10px;
   min-width: 0;
   padding: 16px;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: #fff;
@@ -1599,13 +1599,15 @@ select:focus-visible {
 
 .cook-name strong,
 .cook-name span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .cook-name strong {
   font-size: 17px;
+  line-height: 1.25;
 }
 
 .cook-name span {

@@ -25,6 +25,13 @@ const emptyForm = (category: string) => ({
 
 type ItemForm = ReturnType<typeof emptyForm>;
 
+function newMenuItemId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `item-${crypto.randomUUID()}`;
+  }
+  return `item-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function formFromItem(item: MenuItem, remaining: number): ItemForm {
   return {
     id: item.id,
@@ -212,6 +219,9 @@ const CookBoard = memo(function CookBoard({
     dragIdRef.current = null;
     setDragId(null);
     setOverId(null);
+    window.setTimeout(() => {
+      moved.current = false;
+    }, 0);
     if (to && from !== to) moveMenuItem(from, to);
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -242,6 +252,7 @@ const CookBoard = memo(function CookBoard({
             className={classes}
             onClickCapture={(event) => {
               if (!moved.current) return;
+              if ((event.target as HTMLElement | null)?.closest("button")) return;
               event.preventDefault();
               event.stopPropagation();
             }}
@@ -385,7 +396,7 @@ function InventoryEditor({
     const current = menu.find((entry) => entry.id === form.id);
 
     saveMenuItem({
-      id: form.id || `item-${Date.now()}`,
+      id: form.id || newMenuItemId(),
       name: form.name.trim(),
       category: form.category,
       price,

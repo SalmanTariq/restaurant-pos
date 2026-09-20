@@ -44,6 +44,12 @@ import {
   removeMenuCategory,
   renameMenuCategory,
 } from "./menu-categories";
+import {
+  clearTillDirty,
+  createTillPusher,
+  markTillDirty,
+  tillIsDirty,
+} from "./till-sync";
 
 type PlaceInput = {
   type: PosOrder["type"];
@@ -124,25 +130,30 @@ function tillHasWork(till: TillSnapshot) {
 }
 
 function cacheTill(restaurantId: string, till: TillSnapshot) {
-  writeTenantItem(
-    ORDERS_KEY,
-    restaurantId,
-    JSON.stringify({ orders: till.orders, nextToken: till.nextToken }),
-  );
-  writeTenantItem(
-    BOOKS_KEY,
-    restaurantId,
-    JSON.stringify({ expenses: till.expenses, staff: till.staff }),
-  );
-  writeTenantItem(DAYS_KEY, restaurantId, JSON.stringify(till.days));
-  writeTenantItem(MENU_KEY, restaurantId, JSON.stringify(till.menu));
-  writeTenantItem(SETTINGS_KEY, restaurantId, JSON.stringify(till.settings));
-  writeTenantItem(LAYOUT_KEY, restaurantId, JSON.stringify(till.layout));
-  writeTenantItem(
-    CATEGORIES_KEY,
-    restaurantId,
-    JSON.stringify(till.categories),
-  );
+  const writes: Array<[string, string]> = [
+    [ORDERS_KEY, JSON.stringify({ orders: till.orders, nextToken: till.nextToken })],
+    [BOOKS_KEY, JSON.stringify({ expenses: till.expenses, staff: till.staff })],
+    [DAYS_KEY, JSON.stringify(till.days)],
+    [MENU_KEY, JSON.stringify(till.menu)],
+    [SETTINGS_KEY, JSON.stringify(till.settings)],
+    [LAYOUT_KEY, JSON.stringify(till.layout)],
+    [CATEGORIES_KEY, JSON.stringify(till.categories)],
+  ];
+  try {
+    for (const [key, value] of writes) writeTenantItem(key, restaurantId, value);
+  } catch {
+    try {
+      writeTenantItem(
+        MENU_KEY,
+        restaurantId,
+        JSON.stringify(
+          till.menu.map((item) => ({ ...item, imageDataUrl: null })),
+        ),
+      );
+    } catch {
+      // device storage is full — server copy is the source of truth
+    }
+  }
 }
 
 const PosContext = createContext<PosContextValue | null>(null);
@@ -332,6 +343,18 @@ export function PosProvider({
     loadCategories(restaurantId, loadMenu(restaurantId)),
   );
   const pendingTill = useRef<TillSnapshot | null>(null);
+  const restaurantIdRef = useRef(restaurantId);
+  restaurantIdRef.current = restaurantId;
+  const pusherRef = useRef(
+    createTillPusher({
+      put: (body) =>
+        api("/till", {
+          method: "PUT",
+          body: JSON.stringify(body),
+        }),
+      onSaved: () => clearTillDirty(restaurantIdRef.current),
+    }),
+  );
 
   function applyTill(till: TillSnapshot) {
     setMenu(till.menu);
@@ -364,12 +387,15 @@ export function PosProvider({
         const remote = await api<TillSnapshot>("/till");
         const local = localTill(restaurantId);
         const migrate = !tillHasWork(remote) && tillHasWork(local);
-        const till = migrate ? local : remote;
-        if (migrate) {
+        const keepLocal = tillIsDirty(restaurantId) && local.menu.length > 0;
+        const till = keepLocal || migrate ? local : remote;
+        if (migrate || keepLocal) {
+          markTillDirty(restaurantId);
           await api("/till", {
             method: "PUT",
             body: JSON.stringify(local),
           });
+          clearTillDirty(restaurantId);
         }
         if (!cancelled) applyTill(till);
       } catch {
@@ -398,17 +424,10 @@ export function PosProvider({
       categories,
     };
     cacheTill(restaurantId, till);
+    markTillDirty(restaurantId);
     pendingTill.current = till;
-    const timer = window.setTimeout(() => {
-      const payload = pendingTill.current;
-      pendingTill.current = null;
-      if (!payload) return;
-      void api("/till", {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      }).catch(() => undefined);
-    }, 400);
-    return () => window.clearTimeout(timer);
+    pusherRef.current.enqueue(till);
+    return () => undefined;
   }, [
     ready,
     restaurantId,
@@ -424,14 +443,21 @@ export function PosProvider({
   ]);
 
   useEffect(() => {
+    const pusher = pusherRef.current;
+    function flush() {
+      void pusher.flushNow();
+    }
+    function onHide() {
+      if (document.visibilityState === "hidden") flush();
+    }
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", onHide);
     return () => {
-      const payload = pendingTill.current;
-      if (!payload) return;
-      void api("/till", {
-        method: "PUT",
-        body: JSON.stringify(payload),
-        keepalive: true,
-      }).catch(() => undefined);
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", onHide);
+      flush();
     };
   }, []);
 
