@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -560,7 +561,7 @@ export function PosProvider({
 
   const todayOpen = days.find((day) => day.date === todayISO()) ?? null;
 
-  function startDay(pettyCash: number, openedBy: string) {
+  const startDay = useCallback((pettyCash: number, openedBy: string) => {
     if (!Number.isFinite(pettyCash) || pettyCash < 0) return;
     const date = todayISO();
     const now = new Date();
@@ -579,7 +580,7 @@ export function PosProvider({
       ];
     });
     if (opened) sessionStorage.setItem("shift_started", now.toISOString());
-  }
+  }, []);
 
   function updateSettings(patch: Partial<PosSettings>) {
     setSettings((current) => {

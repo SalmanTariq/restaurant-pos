@@ -135,6 +135,28 @@ mysql_root() {
   mysql --protocol=socket "$@"
 }
 
+ensure_swap() {
+  local mem_kb swap_kb
+  mem_kb="$(awk '/MemTotal:/ {print $2}' /proc/meminfo)"
+  swap_kb="$(awk '/SwapTotal:/ {print $2}' /proc/meminfo)"
+  if [[ "${swap_kb:-0}" -ge 1048576 ]]; then
+    return 0
+  fi
+  if [[ "${mem_kb:-0}" -ge 2097152 ]]; then
+    return 0
+  fi
+  log "Adding 2G swap (this host has under 2G RAM)"
+  if [[ ! -f /swapfile ]]; then
+    fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
+    chmod 600 /swapfile
+    mkswap /swapfile
+  fi
+  swapon /swapfile 2>/dev/null || true
+  if ! grep -q '^/swapfile ' /etc/fstab 2>/dev/null; then
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  fi
+}
+
 install_packages() {
   log "Installing packages (nginx, mysql, certbot, build tools)"
   export DEBIAN_FRONTEND=noninteractive
@@ -246,6 +268,8 @@ harden_mysql() {
   cat > "$cnf" <<'EOF'
 [mysqld]
 bind-address = 127.0.0.1
+innodb_buffer_pool_size = 128M
+performance_schema = OFF
 EOF
   systemctl restart mysql 2>/dev/null || systemctl restart mariadb
   wait_for_mysql
@@ -255,19 +279,27 @@ build_app() {
   log "Building backend and frontend as $APP_USER"
   sudo -u "$APP_USER" -H bash -lc "
     set -euo pipefail
+    export npm_config_audit=false
+    export npm_config_fund=false
+    export NODE_OPTIONS='--max-old-space-size=512'
     cd '$INSTALL_DIR/backend'
-    npm ci
+    npm ci --no-audit --no-fund
     npm run build
     cd '$INSTALL_DIR/frontend'
-    npm ci
+    npm ci --no-audit --no-fund
     VITE_API_URL='$PUBLIC_ORIGIN' npm run build
   "
 }
 
 write_systemd() {
   log "Installing systemd unit"
-  local node_bin
+  local node_bin main_js
   node_bin="$(command -v node)"
+  main_js="${INSTALL_DIR}/backend/dist/main.js"
+  if [[ ! -f "$main_js" ]]; then
+    main_js="${INSTALL_DIR}/backend/dist/src/main.js"
+  fi
+  [[ -f "$main_js" ]] || die "Backend build is missing ($main_js)."
   cat > /etc/systemd/system/restaurant-pos.service <<EOF
 [Unit]
 Description=Restaurant POS API
@@ -280,9 +312,11 @@ User=${APP_USER}
 Group=${APP_USER}
 WorkingDirectory=${INSTALL_DIR}/backend
 EnvironmentFile=${ENV_FILE}
-ExecStart=${node_bin} dist/main.js
+ExecStart=${node_bin} ${main_js}
 Restart=on-failure
 RestartSec=3
+StartLimitBurst=5
+StartLimitIntervalSec=60
 NoNewPrivileges=true
 PrivateTmp=true
 
@@ -290,6 +324,7 @@ PrivateTmp=true
 WantedBy=multi-user.target
 EOF
   systemctl daemon-reload
+  systemctl reset-failed restaurant-pos.service 2>/dev/null || true
   systemctl enable --now restaurant-pos.service
 }
 
@@ -493,6 +528,7 @@ EOF
 }
 
 # --- run ---
+ensure_swap
 install_packages
 systemctl enable --now nginx
 systemctl enable --now mysql 2>/dev/null || systemctl enable --now mariadb

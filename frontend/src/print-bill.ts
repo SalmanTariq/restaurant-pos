@@ -26,6 +26,10 @@ export function printGuestBill(
       </tr>`,
     )
     .join("");
+  const paidNote =
+    order.status === "paid"
+      ? `Paid · ${order.payment === "online" ? "Online" : "Cash"}`
+      : "Pay at the counter";
   const name = (brand.restaurantName ?? DEFAULT_RESTAURANT_NAME).trim() || DEFAULT_RESTAURANT_NAME;
   const logo = isLogoDataUrl(brand.logoDataUrl ?? null) ? brand.logoDataUrl : null;
 
@@ -47,7 +51,14 @@ export function printGuestBill(
       }
       h1 { font-size: 16px; margin: 0; letter-spacing: 0.02em; }
       .brand { text-align: center; border-bottom: 2px dashed #1a1612; padding-bottom: 10px; }
-      .logo { display: block; max-width: 42mm; max-height: 28mm; margin: 0 auto 8px; object-fit: contain; }
+      .logo {
+        display: block;
+        width: 100%;
+        max-width: 56mm;
+        max-height: 36mm;
+        margin: 0 auto 10px;
+        object-fit: contain;
+      }
       .meta { margin: 10px 0; font-size: 13px; }
       table { width: 100%; border-collapse: collapse; font-size: 13px; }
       th { text-align: left; border-bottom: 1px solid #1a1612; padding: 4px 0; }
@@ -60,7 +71,7 @@ export function printGuestBill(
   <body>
     <article class="chit">
       <div class="brand">
-        ${logo ? `<img class="logo" src="${logo}" alt="" />` : ""}
+        ${logo ? `<img class="logo" src="${logo}" alt="${escapeHtml(name)}" />` : ""}
         <h1>${escapeHtml(name)}</h1>
         <div>Guest bill</div>
       </div>
@@ -74,7 +85,7 @@ export function printGuestBill(
         <tbody>${rows}</tbody>
       </table>
       <div class="total"><span>Total</span><span>${rupees(total)}</span></div>
-      <p class="thanks">شکریہ · Pay at the counter</p>
+      <p class="thanks">شکریہ · ${escapeHtml(paidNote)}</p>
     </article>
   </body>
 </html>`;
@@ -82,11 +93,13 @@ export function printGuestBill(
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
   frame.style.position = "fixed";
-  frame.style.right = "0";
-  frame.style.bottom = "0";
-  frame.style.width = "0";
-  frame.style.height = "0";
+  frame.style.left = "-80mm";
+  frame.style.top = "0";
+  frame.style.width = "80mm";
+  frame.style.height = "120mm";
   frame.style.border = "0";
+  frame.style.opacity = "0";
+  frame.style.pointerEvents = "none";
   document.body.appendChild(frame);
 
   const doc = frame.contentDocument;
@@ -98,14 +111,25 @@ export function printGuestBill(
   doc.write(html);
   doc.close();
 
-  const finish = () => {
-    window.setTimeout(() => frame.remove(), 400);
-  };
-
-  try {
-    frame.contentWindow?.focus();
-    frame.contentWindow?.print();
-  } finally {
-    finish();
+  const win = frame.contentWindow;
+  if (!win) {
+    frame.remove();
+    return;
   }
+
+  const images = Array.from(doc.images);
+  Promise.all(
+    images.map((image) =>
+      image.complete
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+            image.addEventListener("load", () => resolve(), { once: true });
+            image.addEventListener("error", () => resolve(), { once: true });
+          }),
+    ),
+  ).then(() => {
+    win.focus();
+    win.print();
+    window.setTimeout(() => frame.remove(), 1200);
+  });
 }

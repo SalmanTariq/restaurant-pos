@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { authClient } from "./auth-client";
 import { AppShell } from "./layout/AppShell";
 import { PosProvider, usePos } from "./pos-store";
@@ -123,25 +123,28 @@ function SignedIn({
 
 function App() {
   const { data: session, isPending, isRefetching } = authClient.useSession();
-  const role = session?.user.role;
+  const heldSession = useRef(session);
+  if (session) heldSession.current = session;
+  if (!session && !isPending && !isRefetching) heldSession.current = null;
+  const view = session ?? heldSession.current;
+  const role = view?.user.role;
   const restaurantId = (
-    session?.user as { restaurantId?: string | null } | undefined
+    view?.user as { restaurantId?: string | null } | undefined
   )?.restaurantId;
 
-  if (isPending && !isRefetching) {
-    return (
-      <div className="login-page">
-        <p className="boot">Opening POS…</p>
-      </div>
-    );
-  }
-
-  if (!session) {
+  if (!view) {
+    if (isPending && !isRefetching) {
+      return (
+        <div className="login-page">
+          <p className="boot">Opening POS…</p>
+        </div>
+      );
+    }
     return <LoginScreen />;
   }
 
   if (role === "platform") {
-    return <PlatformScreen name={session.user.name} />;
+    return <PlatformScreen name={view.user.name} />;
   }
 
   if (!restaurantId) {
@@ -154,7 +157,7 @@ function App() {
 
   return (
     <PosProvider restaurantId={restaurantId}>
-      <SignedIn name={session.user.name} role={role} />
+      <SignedIn name={view.user.name} role={role} />
     </PosProvider>
   );
 }

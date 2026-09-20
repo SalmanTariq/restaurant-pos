@@ -205,6 +205,9 @@ export function OrdersScreen({
           total={paying.total}
           onClose={() => setPaying(null)}
           onPaid={(payment) => {
+            if (selected) {
+              printGuestBill({ ...selected, status: "paid", payment }, settings);
+            }
             payOrder(paying.id, payment);
             setSelectedId(
               activeOrders.find((order) => order.id !== paying.id)?.id ?? null,

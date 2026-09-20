@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CATEGORIES, lineTotal, rupees, stockLabel } from "../demo-data";
 import { usePos } from "../pos-store";
 import type { CartLine, OrderType } from "../pos-types";
+import { printGuestBill } from "../print-bill";
 import { PayDialog } from "./PayDialog";
 import { MenuItemCard } from "./MenuItemCard";
 
@@ -256,13 +257,14 @@ export function OrderScreen({
           total={total}
           onClose={() => setPaying(false)}
           onPaid={(payment) => {
-            placeOrder({
+            const order = placeOrder({
               type: orderType,
               tableId,
               lines: cart,
               status: "paid",
               payment,
             });
+            printGuestBill(order, settings);
             onCart([]);
             setTicketOpen(false);
           }}

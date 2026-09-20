@@ -1,4 +1,4 @@
-const CACHE = "dmn-pos-v1";
+const CACHE = "dmn-pos-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());

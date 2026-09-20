@@ -270,8 +270,8 @@ select:focus-visible {
   font-weight: 700;
 }
 
-.login-card input:not([type="checkbox"]),
-.users-form input:not([type="checkbox"]),
+.login-card input:not([type="checkbox"]):not([type="file"]),
+.users-form input:not([type="checkbox"]):not([type="file"]),
 .users-form select {
   width: 100%;
   min-height: 48px;
@@ -1347,11 +1347,12 @@ select:focus-visible {
 
 .cook-board {
   list-style: none;
-  margin: 0 0 28px;
+  margin: 0;
   padding: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
+  overflow-anchor: none;
 }
 
 .cook-card {
@@ -1593,6 +1594,10 @@ select:focus-visible {
 
 .users-form {
   width: auto;
+}
+
+#inv-editor {
+  margin-bottom: 24px;
 }
 
 .users-form h2 {
