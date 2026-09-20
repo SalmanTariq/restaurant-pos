@@ -1,9 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { httpOrigins } from './http-origins';
+import { ApiExceptionFilter } from './http-error';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.useGlobalFilters(new ApiExceptionFilter());
   if (process.env.TRUST_PROXY === '1') {
     app.getHttpAdapter().getInstance().set('trust proxy', 1);
   }
