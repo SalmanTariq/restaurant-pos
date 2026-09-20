@@ -374,6 +374,9 @@ describe('Password authentication (e2e)', () => {
 
     expect(empty.body.settings.restaurantName).toBe('Test Kitchen');
     expect(empty.body.menu.length).toBeGreaterThan(0);
+    expect(empty.body.categories).toEqual(
+      expect.arrayContaining(['Karahi', 'BBQ', 'Drinks']),
+    );
     expect(empty.body.orders).toEqual([]);
     expect(empty.body.nextToken).toBe(1);
 

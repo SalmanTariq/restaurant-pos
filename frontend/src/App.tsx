@@ -11,6 +11,7 @@ import { SalesScreen } from "./screens/SalesScreen";
 import { BalanceScreen } from "./screens/BalanceScreen";
 import { DayStartScreen } from "./screens/DayStartScreen";
 import { PlatformScreen } from "./screens/PlatformScreen";
+import { CategoriesScreen } from "./screens/CategoriesScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { TablesScreen } from "./screens/TablesScreen";
 import { UsersScreen } from "./screens/UsersScreen";
@@ -44,10 +45,10 @@ function SignedIn({
   }, [name, settings.requirePettyCash, startDay, todayOpen]);
 
   useEffect(() => {
-    if (screen === "inventory" && !settings.useInventory) {
+    if (screen === "inventory" && role !== "admin") {
       setScreen("order");
     }
-  }, [screen, settings.useInventory]);
+  }, [screen, role]);
 
   function openTables() {
     setScreen("tables");
@@ -112,9 +113,8 @@ function SignedIn({
       )}
       {screen === "expenses" && <ExpensesScreen />}
       {screen === "balance" && <BalanceScreen />}
-      {screen === "inventory" && role === "admin" && settings.useInventory && (
-        <InventoryScreen />
-      )}
+      {screen === "inventory" && role === "admin" && <InventoryScreen />}
+      {screen === "categories" && role === "admin" && <CategoriesScreen />}
       {screen === "users" && role === "admin" && <UsersScreen />}
       {screen === "settings" && role === "admin" && <SettingsScreen />}
     </AppShell>

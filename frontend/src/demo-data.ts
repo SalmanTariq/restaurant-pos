@@ -8,14 +8,7 @@ import type {
 } from "./pos-types";
 import { readTenantItem } from "./tenant-storage";
 
-export const CATEGORIES = [
-  "Karahi",
-  "Naan & Roti",
-  "BBQ",
-  "Rice",
-  "Drinks",
-  "Sides",
-];
+export { DEFAULT_MENU_CATEGORIES as CATEGORIES } from "./menu-categories";
 
 export const MENU_ITEMS: MenuItem[] = [
   { id: "ck-half", name: "Chicken Karahi (Half)", category: "Karahi", price: 950, stock: 0, active: true },

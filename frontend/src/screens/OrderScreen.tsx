@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { CATEGORIES, lineTotal, rupees, stockLabel } from "../demo-data";
+import { lineTotal, rupees, stockLabel } from "../demo-data";
+import { groupMenuSections, MenuSectionList, useMenuScroll } from "../menu-board";
 import { usePos } from "../pos-store";
 import type { CartLine, OrderType } from "../pos-types";
 import { printGuestBill } from "../print-bill";
@@ -21,11 +22,19 @@ export function OrderScreen({
   onOpenTables: () => void;
   onCart: (cart: CartLine[]) => void;
 }) {
-  const { menu, nextToken, available, placeOrder, settings } = usePos();
-  const [category, setCategory] = useState(CATEGORIES[0]);
+  const { menu, nextToken, available, placeOrder, settings, categories } = usePos();
   const [paying, setPaying] = useState(false);
   const [ticketOpen, setTicketOpen] = useState(false);
   const count = cart.reduce((sum, line) => sum + line.qty, 0);
+  const sections = useMemo(
+    () => groupMenuSections(categories, menu),
+    [categories, menu],
+  );
+  const sectionNames = useMemo(
+    () => sections.map((section) => section.name),
+    [sections],
+  );
+  const { scrollerRef, active, go } = useMenuScroll(sectionNames);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -35,10 +44,6 @@ export function OrderScreen({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const items = useMemo(
-    () => menu.filter((item) => item.active && item.category === category),
-    [menu, category],
-  );
   const total = lineTotal(cart);
 
   function addItem(id: string, name: string, price: number) {
@@ -89,19 +94,20 @@ export function OrderScreen({
   return (
     <div className={ticketOpen ? "order-layout is-ticket-open" : "order-layout"}>
       <aside className="cats" aria-label="Menu categories">
-        {CATEGORIES.map((name) => (
+        {categories.map((name) => (
           <button
             key={name}
             type="button"
-            className={category === name ? "cat-btn is-active" : "cat-btn"}
-            onClick={() => setCategory(name)}
+            className={active === name ? "cat-btn is-active" : "cat-btn"}
+            data-cat-nav={name}
+            onClick={() => go(name)}
           >
             {name}
           </button>
         ))}
       </aside>
 
-      <section className="menu-pane">
+      <div className="menu-pane" ref={scrollerRef}>
         <div className="type-toggle" role="group" aria-label="Order type">
           <button
             type="button"
@@ -124,8 +130,10 @@ export function OrderScreen({
           </button>
         </div>
 
-        <div className="item-grid">
-          {items.map((item) => {
+        <MenuSectionList
+          sections={sections}
+          gridClass="item-grid photo-board"
+          renderItem={(item) => {
             const left = available(item.id, cart);
             const soldOut = settings.useInventory && left <= 0;
             return (
@@ -138,9 +146,9 @@ export function OrderScreen({
                 onAdd={() => addItem(item.id, item.name, item.price)}
               />
             );
-          })}
-        </div>
-      </section>
+          }}
+        />
+      </div>
 
       <button
         type="button"

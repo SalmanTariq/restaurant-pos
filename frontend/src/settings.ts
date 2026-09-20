@@ -131,11 +131,23 @@ export function exportSquareDishPhoto(
   const canvas = document.createElement("canvas");
   canvas.width = DISH_PHOTO_SIZE;
   canvas.height = DISH_PHOTO_SIZE;
-  const ctx = canvas.getContext("2d");
+  const ctx = dishPhotoContext(canvas);
   if (!ctx) throw new Error("Could not crop that photo.");
+  ctx.filter = "none";
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, DISH_PHOTO_SIZE, DISH_PHOTO_SIZE);
   ctx.drawImage(image, x, y, crop, crop, 0, 0, DISH_PHOTO_SIZE, DISH_PHOTO_SIZE);
-  return canvas.toDataURL("image/jpeg", 0.82);
+  return canvas.toDataURL("image/jpeg", 0.92);
+}
+
+function dishPhotoContext(canvas: HTMLCanvasElement) {
+  const wide = { colorSpace: "display-p3", alpha: false } as CanvasRenderingContext2DSettings;
+  return (
+    canvas.getContext("2d", wide) ??
+    canvas.getContext("2d", { alpha: false }) ??
+    canvas.getContext("2d")
+  );
 }
 

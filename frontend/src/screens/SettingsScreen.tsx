@@ -120,11 +120,11 @@ export function SettingsScreen() {
               updateSettings({ useInventory: event.currentTarget.checked })
             }
           />
-          Track kitchen stock in inventory
+          Track kitchen stock on the till
         </label>
         <p className="subhead">
           Turn stock off if the kitchen does not count portions. The order screen
-          will hide remaining counts, and Inventory leaves the menu.
+          hides remaining counts. Inventory stays so you can edit dishes.
         </p>
       </section>
     </main>

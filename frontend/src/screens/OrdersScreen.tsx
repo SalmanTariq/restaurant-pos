@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { CATEGORIES, lineTotal, rupees, stockLabel } from "../demo-data";
+import { lineTotal, rupees, stockLabel } from "../demo-data";
+import { groupMenuSections, MenuSectionList, useMenuScroll } from "../menu-board";
 import { usePos } from "../pos-store";
 import type { PosOrder } from "../pos-types";
 import { printGuestBill } from "../print-bill";
@@ -25,16 +26,25 @@ export function OrdersScreen({
     billOrder,
     payOrder,
     settings,
+    categories,
   } = usePos();
   const [selectedId, setSelectedId] = useState<string | null>(
     focusOrderId ?? activeOrders[0]?.id ?? null,
   );
-  const [category, setCategory] = useState(CATEGORIES[0]);
   const [paying, setPaying] = useState<{
     id: string;
     token: number;
     total: number;
   } | null>(null);
+  const sections = useMemo(
+    () => groupMenuSections(categories, menu),
+    [categories, menu],
+  );
+  const sectionNames = useMemo(
+    () => sections.map((section) => section.name),
+    [sections],
+  );
+  const { scrollerRef, active, go } = useMenuScroll(sectionNames);
 
   useEffect(() => {
     if (focusOrderId) setSelectedId(focusOrderId);
@@ -42,10 +52,6 @@ export function OrdersScreen({
 
   const selected =
     activeOrders.find((order) => order.id === selectedId) ?? activeOrders[0] ?? null;
-  const items = useMemo(
-    () => menu.filter((item) => item.active && item.category === category),
-    [menu, category],
-  );
   const total = selected ? lineTotal(selected.lines) : 0;
 
   if (activeOrders.length === 0) {
@@ -164,21 +170,24 @@ export function OrdersScreen({
               </div>
             </div>
 
-            <div className="desk-menu">
+            <div className="desk-menu" ref={scrollerRef}>
               <div className="type-toggle compact-cats" role="tablist" aria-label="Categories">
-                {CATEGORIES.map((name) => (
+                {categories.map((name) => (
                   <button
                     key={name}
                     type="button"
-                    className={category === name ? "cat-chip is-active" : "cat-chip"}
-                    onClick={() => setCategory(name)}
+                    className={active === name ? "cat-chip is-active" : "cat-chip"}
+                    data-cat-nav={name}
+                    onClick={() => go(name)}
                   >
                     {name}
                   </button>
                 ))}
               </div>
-              <div className="item-grid photo-board">
-                {items.map((item) => {
+              <MenuSectionList
+                sections={sections}
+                gridClass="item-grid photo-board"
+                renderItem={(item) => {
                   const left = available(item.id);
                   const soldOut = settings.useInventory && left <= 0;
                   return (
@@ -192,8 +201,8 @@ export function OrdersScreen({
                       onAdd={() => addItemToOrder(selected.id, item)}
                     />
                   );
-                })}
-              </div>
+                }}
+              />
             </div>
           </div>
         </section>

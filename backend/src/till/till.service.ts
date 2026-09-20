@@ -10,6 +10,7 @@ import { OrderStatus, OrderType, PaymentMethod } from '../database/entities/enum
 import { Restaurant } from '../database/entities/restaurant.entity';
 import { WageStaff } from '../database/entities/wage-staff.entity';
 import { DEFAULT_FLOOR, DEFAULT_MENU } from './default-catalog';
+import { mergeMenuCategories } from './menu-categories';
 
 export type TillMenuItem = {
   id: string;
@@ -89,6 +90,7 @@ export type TillSnapshot = {
   days: TillDay[];
   settings: TillSettings;
   layout: TillLayout[];
+  categories: string[];
 };
 
 const LOGO_PATTERN = /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i;
@@ -200,6 +202,10 @@ export class TillService {
         useInventory: restaurant.useInventory !== false,
       },
       layout: this.readLayout(restaurant.floorPlan),
+      categories: mergeMenuCategories(
+        restaurant.menuCategories,
+        menu.map((item) => item.category),
+      ),
     };
   }
 
@@ -216,6 +222,7 @@ export class TillService {
       restaurant.useInventory = snapshot.settings.useInventory;
       restaurant.nextToken = snapshot.nextToken;
       restaurant.floorPlan = snapshot.layout;
+      restaurant.menuCategories = snapshot.categories;
       await em.save(restaurant);
 
       await em.query(
@@ -364,6 +371,10 @@ export class TillService {
       ),
     );
     restaurant.floorPlan = DEFAULT_FLOOR;
+    restaurant.menuCategories = mergeMenuCategories(
+      null,
+      DEFAULT_MENU.map((item) => item.category),
+    );
     if (!restaurant.nextToken) restaurant.nextToken = 1;
     await this.restaurants.save(restaurant);
     await this.tables.save(
@@ -449,20 +460,21 @@ export class TillService {
         ? body.settings.restaurantName.trim()
         : 'Restaurant';
     const logo = body.settings?.logoDataUrl ?? null;
+    const menu = body.menu.map((item, index) => {
+      const image = item?.imageDataUrl ?? null;
+      return {
+        id: String(item?.id || `item-${index}`),
+        name: String(item?.name || 'Item').trim() || 'Item',
+        category: String(item?.category || 'Other'),
+        price: Math.max(0, money(item?.price)),
+        stock: Math.max(0, Math.floor(money(item?.stock))),
+        active: item?.active !== false,
+        imageDataUrl:
+          typeof image === 'string' && LOGO_PATTERN.test(image) ? image : null,
+      };
+    });
     return {
-      menu: body.menu.map((item, index) => {
-        const image = item?.imageDataUrl ?? null;
-        return {
-          id: String(item?.id || `item-${index}`),
-          name: String(item?.name || 'Item').trim() || 'Item',
-          category: String(item?.category || 'Other'),
-          price: Math.max(0, money(item?.price)),
-          stock: Math.max(0, Math.floor(money(item?.stock))),
-          active: item?.active !== false,
-          imageDataUrl:
-            typeof image === 'string' && LOGO_PATTERN.test(image) ? image : null,
-        };
-      }),
+      menu,
       orders: Array.isArray(body.orders)
         ? body.orders.map((order, index) => this.normalizeOrder(order, index))
         : [],
@@ -500,6 +512,10 @@ export class TillService {
         useInventory: body.settings?.useInventory !== false,
       },
       layout: this.readLayout(body.layout),
+      categories: mergeMenuCategories(
+        body.categories,
+        menu.map((item) => item.category),
+      ),
     };
   }
 

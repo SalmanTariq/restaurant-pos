@@ -36,6 +36,13 @@ import type {
 import { SETTINGS_KEY, isLogoDataUrl, loadSettings } from "./settings";
 import { readTenantItem, writeTenantItem } from "./tenant-storage";
 import { api } from "./api";
+import {
+  addMenuCategory,
+  mergeMenuCategories,
+  remapItemCategory,
+  removeMenuCategory,
+  renameMenuCategory,
+} from "./menu-categories";
 
 type PlaceInput = {
   type: PosOrder["type"];
@@ -49,6 +56,10 @@ type PosContextValue = {
   restaurantId: string;
   ready: boolean;
   menu: MenuItem[];
+  categories: string[];
+  addCategory: (name: string) => string | null;
+  renameCategory: (from: string, to: string) => string | null;
+  deleteCategory: (name: string, moveTo?: string) => string | null;
   orders: PosOrder[];
   nextToken: number;
   tables: DiningTable[];
@@ -82,6 +93,7 @@ const ORDERS_KEY = "dmn_pos_orders";
 const BOOKS_KEY = "dmn_pos_books";
 const DAYS_KEY = "dmn_pos_days";
 const MENU_KEY = "dmn_pos_menu";
+const CATEGORIES_KEY = "dmn_pos_categories";
 
 function localTill(restaurantId: string): TillSnapshot {
   const saved = loadSavedOrders(restaurantId);
@@ -95,6 +107,7 @@ function localTill(restaurantId: string): TillSnapshot {
     days: loadDays(restaurantId),
     settings: loadSettings(restaurantId),
     layout: loadLayout(restaurantId),
+    categories: loadCategories(restaurantId, loadMenu(restaurantId)),
   };
 }
 
@@ -123,6 +136,11 @@ function cacheTill(restaurantId: string, till: TillSnapshot) {
   writeTenantItem(MENU_KEY, restaurantId, JSON.stringify(till.menu));
   writeTenantItem(SETTINGS_KEY, restaurantId, JSON.stringify(till.settings));
   writeTenantItem(LAYOUT_KEY, restaurantId, JSON.stringify(till.layout));
+  writeTenantItem(
+    CATEGORIES_KEY,
+    restaurantId,
+    JSON.stringify(till.categories),
+  );
 }
 
 const PosContext = createContext<PosContextValue | null>(null);
@@ -145,6 +163,22 @@ function asMenuItem(value: unknown): MenuItem | null {
     active: entry.active !== false,
     imageDataUrl: isLogoDataUrl(entry.imageDataUrl) ? entry.imageDataUrl : null,
   };
+}
+
+function loadCategories(restaurantId: string, menu: MenuItem[]): string[] {
+  try {
+    const raw = readTenantItem(CATEGORIES_KEY, restaurantId);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : undefined;
+    return mergeMenuCategories(
+      parsed,
+      menu.map((item) => item.category),
+    );
+  } catch {
+    return mergeMenuCategories(
+      undefined,
+      menu.map((item) => item.category),
+    );
+  }
 }
 
 function loadMenu(restaurantId: string): MenuItem[] {
@@ -292,6 +326,9 @@ export function PosProvider({
   const [settings, setSettings] = useState<PosSettings>(() =>
     loadSettings(restaurantId),
   );
+  const [categories, setCategories] = useState<string[]>(() =>
+    loadCategories(restaurantId, loadMenu(restaurantId)),
+  );
   const pendingTill = useRef<TillSnapshot | null>(null);
 
   function applyTill(till: TillSnapshot) {
@@ -303,7 +340,19 @@ export function PosProvider({
     setStaff(till.staff);
     setDays(till.days);
     setSettings(till.settings);
-    cacheTill(restaurantId, till);
+    setCategories(
+      mergeMenuCategories(
+        till.categories,
+        till.menu.map((item) => item.category),
+      ),
+    );
+    cacheTill(restaurantId, {
+      ...till,
+      categories: mergeMenuCategories(
+        till.categories,
+        till.menu.map((item) => item.category),
+      ),
+    });
   }
 
   useEffect(() => {
@@ -344,6 +393,7 @@ export function PosProvider({
       days,
       settings,
       layout,
+      categories,
     };
     cacheTill(restaurantId, till);
     pendingTill.current = till;
@@ -368,6 +418,7 @@ export function PosProvider({
     days,
     settings,
     layout,
+    categories,
   ]);
 
   useEffect(() => {
@@ -558,11 +609,52 @@ export function PosProvider({
       }
       return [...current, item];
     });
+    setCategories((current) => {
+      const added = addMenuCategory(current, item.category);
+      return added.ok ? added.list : current;
+    });
   }
 
   function deleteMenuItem(id: string) {
     if (!id) return;
     setMenu((current) => current.filter((entry) => entry.id !== id));
+  }
+
+  function addCategory(name: string) {
+    const next = addMenuCategory(categories, name);
+    if (!next.ok) return next.error;
+    setCategories(next.list);
+    return null;
+  }
+
+  function renameCategory(from: string, to: string) {
+    const next = renameMenuCategory(categories, from, to);
+    if (!next.ok) return next.error;
+    const previous = next.from ?? from;
+    const renamed = next.to ?? to;
+    setCategories(next.list);
+    setMenu((current) =>
+      current.map((item) => ({
+        ...item,
+        category: remapItemCategory(item.category, previous, renamed),
+      })),
+    );
+    return null;
+  }
+
+  function deleteCategory(name: string, moveTo?: string) {
+    const next = removeMenuCategory(categories, name);
+    if (!next.ok) return next.error;
+    const fallback =
+      moveTo && next.list.includes(moveTo) ? moveTo : next.list[0];
+    setCategories(next.list);
+    setMenu((current) =>
+      current.map((item) => ({
+        ...item,
+        category: remapItemCategory(item.category, name, fallback),
+      })),
+    );
+    return null;
   }
 
   const todayOpen = days.find((day) => day.date === todayISO()) ?? null;
@@ -606,6 +698,10 @@ export function PosProvider({
     restaurantId,
     ready,
     menu,
+    categories,
+    addCategory,
+    renameCategory,
+    deleteCategory,
     orders,
     nextToken,
     tables,

@@ -6,6 +6,7 @@ export type Screen =
   | "expenses"
   | "balance"
   | "inventory"
+  | "categories"
   | "users"
   | "settings";
 export type OrderType = "takeaway" | "dine-in";
@@ -122,4 +123,5 @@ export type TillSnapshot = {
   days: DayOpen[];
   settings: PosSettings;
   layout: TableLayout[];
+  categories: string[];
 };

@@ -104,9 +104,8 @@ export function AppShell({
   const displayRole = role === "admin" ? "Admin" : "Cashier";
   const moreItems = [
     ...MORE,
-    ...(role === "admin" && settings.useInventory
-      ? [{ id: "inventory" as const, label: "Inventory" }]
-      : []),
+    ...(role === "admin" ? [{ id: "inventory" as const, label: "Inventory" }] : []),
+    ...(role === "admin" ? [{ id: "categories" as const, label: "Categories" }] : []),
     ...(role === "admin" ? [{ id: "users" as const, label: "Users" }] : []),
     ...(role === "admin" ? [{ id: "settings" as const, label: "Settings" }] : []),
   ];

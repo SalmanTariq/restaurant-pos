@@ -37,6 +37,9 @@ export class Restaurant {
   @Column({ type: 'json', nullable: true })
   floorPlan: unknown | null;
 
+  @Column({ type: 'json', nullable: true })
+  menuCategories: unknown | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

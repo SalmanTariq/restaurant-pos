@@ -5,23 +5,23 @@ import {
   useState,
   type ChangeEvent,
 } from "react";
-import { CATEGORIES, stockLabel, stockTone } from "../demo-data";
+import { rupees, stockLabel, stockTone } from "../demo-data";
 import { usePos } from "../pos-store";
 import type { MenuItem } from "../pos-types";
 import { isLogoDataUrl, openDishPhotoFile } from "../settings";
 import { DishPhotoCrop } from "./DishPhotoCrop";
 
-const emptyForm = {
+const emptyForm = (category: string) => ({
   id: "",
   name: "",
-  category: CATEGORIES[0],
+  category,
   price: "",
   remaining: "0",
   active: true,
   imageDataUrl: null as string | null,
-};
+});
 
-type ItemForm = typeof emptyForm;
+type ItemForm = ReturnType<typeof emptyForm>;
 
 function formFromItem(item: MenuItem, remaining: number): ItemForm {
   return {
@@ -40,7 +40,8 @@ function inputValue(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
 }
 
 export function InventoryScreen() {
-  const { menu, available, deleteMenuItem, onTickets } = usePos();
+  const { menu, available, deleteMenuItem, onTickets, categories, settings } =
+    usePos();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [editingId, setEditingId] = useState("");
@@ -82,8 +83,9 @@ export function InventoryScreen() {
         <div>
           <h1>Inventory</h1>
           <p className="subhead">
-            Record what the kitchen cooked. Open and paid orders come off remaining
-            stock.
+            {settings.useInventory
+              ? "Record what the kitchen cooked. Open and paid orders come off remaining stock."
+              : "Add and edit dishes. Stock counting is off in Settings."}
           </p>
         </div>
       </div>
@@ -105,7 +107,7 @@ export function InventoryScreen() {
             onChange={(event) => setCategory(event.target.value)}
           >
             <option value="all">All</option>
-            {CATEGORIES.map((name) => (
+            {categories.map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>
@@ -127,6 +129,7 @@ export function InventoryScreen() {
         editingId={editingId}
         onEdit={onEdit}
         onAskDelete={askDelete}
+        showStock={settings.useInventory}
       />
       {pendingDelete ? (
         <DeleteDishDialog
@@ -149,11 +152,13 @@ const CookBoard = memo(function CookBoard({
   editingId,
   onEdit,
   onAskDelete,
+  showStock,
 }: {
   rows: MenuItem[];
   editingId: string;
   onEdit: (item: MenuItem) => void;
   onAskDelete: (item: MenuItem) => void;
+  showStock: boolean;
 }) {
   const { available, onTickets, addCooked } = usePos();
   const [cookQty, setCookQty] = useState<Record<string, string>>({});
@@ -193,6 +198,7 @@ const CookBoard = memo(function CookBoard({
                   {item.category}
                   {item.active ? "" : " · hidden"}
                 </span>
+                <em className="cook-price">{rupees(item.price)}</em>
               </p>
               <div className="cook-actions">
                 <button
@@ -215,6 +221,8 @@ const CookBoard = memo(function CookBoard({
                 </button>
               </div>
             </div>
+            {showStock ? (
+              <>
             <p className={tone ? `cook-left ${tone}` : "cook-left"}>
               <strong>{left}</strong>
               <span>
@@ -248,6 +256,8 @@ const CookBoard = memo(function CookBoard({
                 Add cooked
               </button>
             </div>
+              </>
+            ) : null}
           </li>
         );
       })}
@@ -266,9 +276,9 @@ function InventoryEditor({
   onClose: () => void;
   onAskDelete: (item: MenuItem) => void;
 }) {
-  const { saveMenuItem, onTickets } = usePos();
+  const { saveMenuItem, onTickets, categories, settings, menu } = usePos();
   const [form, setForm] = useState<ItemForm>(() =>
-    item ? formFromItem(item, remaining) : { ...emptyForm },
+    item ? formFromItem(item, remaining) : emptyForm(categories[0] ?? "Other"),
   );
   const [photoError, setPhotoError] = useState("");
   const [cropSrc, setCropSrc] = useState<string | null>(null);
@@ -287,21 +297,29 @@ function InventoryEditor({
 
   function save() {
     const price = Number(form.price);
-    const nextRemaining = Number(form.remaining);
     if (!form.name.trim() || !Number.isFinite(price) || price < 0) return;
-    if (!Number.isFinite(nextRemaining) || nextRemaining < 0) return;
+    const nextRemaining = Number(form.remaining);
+    if (
+      settings.useInventory &&
+      (!Number.isFinite(nextRemaining) || nextRemaining < 0)
+    ) {
+      return;
+    }
     const held = form.id ? onTickets(form.id) : 0;
+    const current = menu.find((entry) => entry.id === form.id);
 
     saveMenuItem({
       id: form.id || `item-${Date.now()}`,
       name: form.name.trim(),
       category: form.category,
       price,
-      stock: Math.floor(nextRemaining) + held,
+      stock: settings.useInventory
+        ? Math.floor(nextRemaining) + held
+        : (current?.stock ?? 0),
       active: form.active,
       imageDataUrl: form.imageDataUrl,
     });
-    setForm({ ...emptyForm });
+    setForm(emptyForm(categories[0] ?? "Other"));
     onClose();
   }
 
@@ -310,8 +328,12 @@ function InventoryEditor({
       <h2>{editing ? "Edit item" : "Add item"}</h2>
       <p className="subhead">
         {editing
-          ? "Change name, price, remaining stock, or hide the item from the order screen."
-          : "New items start at the remaining stock you enter. Add cooked later for new batches."}
+          ? settings.useInventory
+            ? "Change name, price, remaining stock, or hide the item from the order screen."
+            : "Change name, price, photo, or hide the item from the order screen."
+          : settings.useInventory
+            ? "New items start at the remaining stock you enter. Add cooked later for new batches."
+            : "New items appear on Order once you save them."}
       </p>
       <label htmlFor="inv-name">Name</label>
       <input
@@ -327,7 +349,11 @@ function InventoryEditor({
         value={form.category}
         onChange={(event) => patch("category", inputValue(event))}
       >
-        {CATEGORIES.map((name) => (
+        {Array.from(
+          new Set(
+            form.category ? [form.category, ...categories] : categories,
+          ),
+        ).map((name) => (
           <option key={name} value={name}>
             {name}
           </option>
@@ -342,15 +368,19 @@ function InventoryEditor({
         value={form.price}
         onChange={(event) => patch("price", inputValue(event))}
       />
-      <label htmlFor="inv-remaining">Remaining stock</label>
-      <input
-        id="inv-remaining"
-        type="number"
-        min="0"
-        step="1"
-        value={form.remaining}
-        onChange={(event) => patch("remaining", inputValue(event))}
-      />
+      {settings.useInventory ? (
+        <>
+          <label htmlFor="inv-remaining">Remaining stock</label>
+          <input
+            id="inv-remaining"
+            type="number"
+            min="0"
+            step="1"
+            value={form.remaining}
+            onChange={(event) => patch("remaining", inputValue(event))}
+          />
+        </>
+      ) : null}
       <span className="dish-photo-label" id="inv-photo-label">
         Item photo
       </span>
@@ -436,7 +466,7 @@ function InventoryEditor({
             type="button"
             className="ghost-btn modal-cancel"
             onClick={() => {
-              setForm({ ...emptyForm });
+              setForm(emptyForm(categories[0] ?? "Other"));
               onClose();
             }}
           >
