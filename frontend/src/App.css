@@ -283,7 +283,8 @@ select:focus-visible {
 
 .btn-tandoor,
 .btn-pay,
-.btn-ink {
+.btn-ink,
+.btn-danger {
   width: 100%;
   min-height: 56px;
   margin-top: 18px;
@@ -309,9 +310,14 @@ select:focus-visible {
   background: var(--ink);
 }
 
+.btn-danger {
+  background: var(--danger);
+}
+
 .btn-tandoor:disabled,
 .btn-pay:disabled,
-.btn-ink:disabled {
+.btn-ink:disabled,
+.btn-danger:disabled {
   opacity: 0.45;
 }
 
@@ -740,6 +746,29 @@ select:focus-visible {
   border-radius: 10px;
   padding: 0 10px;
   background: #fff;
+}
+
+.range-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.range-today {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 800;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.range-today:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .page-urdu {
@@ -1358,7 +1387,9 @@ select:focus-visible {
 .cook-card {
   display: grid;
   gap: 10px;
+  min-width: 0;
   padding: 16px;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: #fff;
@@ -1369,10 +1400,11 @@ select:focus-visible {
 }
 
 .cook-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
   gap: 10px;
+  min-width: 0;
 }
 
 .cook-thumb {
@@ -1413,6 +1445,40 @@ select:focus-visible {
   font-weight: 800;
 }
 
+.cook-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.cook-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.cook-icon.is-danger {
+  color: var(--danger);
+  border-color: #e8cfc9;
+}
+
+.cook-edit.is-danger {
+  color: var(--danger);
+  border-color: #e8cfc9;
+}
+
+.cook-name strong,
+.cook-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .cook-name strong {
   font-size: 17px;
 }
@@ -1451,9 +1517,10 @@ select:focus-visible {
 
 .cook-add {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: end;
+  min-width: 0;
 }
 
 .cook-add label span {
@@ -1517,9 +1584,18 @@ select:focus-visible {
 }
 
 .logo-preview.is-empty {
-  display: block;
-  background:
-    radial-gradient(circle at 50% 30%, #ffb25a, var(--tandoor) 55%, #7a2e00);
+  display: grid;
+  place-items: center;
+  background: #fbf8f4;
+  color: #c9bfb3;
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.logo-preview.is-empty.dish-preview {
+  border-style: dashed;
+  color: #b9aea3;
 }
 
 .dish-preview {
@@ -1530,6 +1606,69 @@ select:focus-visible {
   display: block;
   margin: 14px 0 6px;
   font-weight: 700;
+}
+
+.dish-photo-hint {
+  margin: 0;
+  max-width: 28ch;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.dish-crop-modal {
+  width: min(420px, 100%);
+}
+
+.dish-crop-stage {
+  position: relative;
+  width: min(320px, 100%);
+  aspect-ratio: 1 / 1;
+  margin: 16px auto 8px;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: #1a1612;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.dish-crop-stage.is-dragging {
+  cursor: grabbing;
+}
+
+.dish-crop-stage img {
+  position: absolute;
+  max-width: none;
+  pointer-events: none;
+}
+
+.dish-crop-zoom {
+  display: block;
+  margin: 10px 0 6px;
+  font-weight: 700;
+}
+
+.dish-crop-modal input[type="range"] {
+  width: 100%;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--tandoor);
+}
+
+.users-form .logo-file {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}
+
+.logo-actions .ghost-btn {
+  width: auto;
+  min-width: 44px;
+  padding: 0 14px;
 }
 
 .logo-actions {
@@ -2086,6 +2225,12 @@ select:focus-visible {
   .range-fields {
     display: grid;
     grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .range-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
     width: 100%;
   }
 

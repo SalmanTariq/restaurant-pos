@@ -8,7 +8,8 @@ import {
 import { CATEGORIES, stockLabel, stockTone } from "../demo-data";
 import { usePos } from "../pos-store";
 import type { MenuItem } from "../pos-types";
-import { isLogoDataUrl, readDishPhotoFile } from "../settings";
+import { isLogoDataUrl, openDishPhotoFile } from "../settings";
+import { DishPhotoCrop } from "./DishPhotoCrop";
 
 const emptyForm = {
   id: "",
@@ -39,10 +40,11 @@ function inputValue(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
 }
 
 export function InventoryScreen() {
-  const { menu, available } = usePos();
+  const { menu, available, deleteMenuItem, onTickets } = usePos();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [editingId, setEditingId] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<MenuItem | null>(null);
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -64,6 +66,10 @@ export function InventoryScreen() {
         block: "start",
       });
     });
+  }, []);
+
+  const askDelete = useCallback((item: MenuItem) => {
+    setPendingDelete(item);
   }, []);
 
   const editingItem = editingId
@@ -114,8 +120,26 @@ export function InventoryScreen() {
         item={editingItem}
         remaining={editingItem ? available(editingItem.id) : 0}
         onClose={() => setEditingId("")}
+        onAskDelete={askDelete}
       />
-      <CookBoard rows={rows} editingId={editingId} onEdit={onEdit} />
+      <CookBoard
+        rows={rows}
+        editingId={editingId}
+        onEdit={onEdit}
+        onAskDelete={askDelete}
+      />
+      {pendingDelete ? (
+        <DeleteDishDialog
+          item={pendingDelete}
+          held={onTickets(pendingDelete.id)}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => {
+            deleteMenuItem(pendingDelete.id);
+            if (editingId === pendingDelete.id) setEditingId("");
+            setPendingDelete(null);
+          }}
+        />
+      ) : null}
     </main>
   );
 }
@@ -124,10 +148,12 @@ const CookBoard = memo(function CookBoard({
   rows,
   editingId,
   onEdit,
+  onAskDelete,
 }: {
   rows: MenuItem[];
   editingId: string;
   onEdit: (item: MenuItem) => void;
+  onAskDelete: (item: MenuItem) => void;
 }) {
   const { available, onTickets, addCooked } = usePos();
   const [cookQty, setCookQty] = useState<Record<string, string>>({});
@@ -168,13 +194,26 @@ const CookBoard = memo(function CookBoard({
                   {item.active ? "" : " · hidden"}
                 </span>
               </p>
-              <button
-                type="button"
-                className="cook-edit"
-                onClick={() => onEdit(item)}
-              >
-                Edit
-              </button>
+              <div className="cook-actions">
+                <button
+                  type="button"
+                  className="cook-icon"
+                  aria-label={`Edit ${item.name}`}
+                  title="Edit"
+                  onClick={() => onEdit(item)}
+                >
+                  <PencilIcon />
+                </button>
+                <button
+                  type="button"
+                  className="cook-icon is-danger"
+                  aria-label={`Delete ${item.name}`}
+                  title="Delete"
+                  onClick={() => onAskDelete(item)}
+                >
+                  <TrashIcon />
+                </button>
+              </div>
             </div>
             <p className={tone ? `cook-left ${tone}` : "cook-left"}>
               <strong>{left}</strong>
@@ -220,17 +259,27 @@ function InventoryEditor({
   item,
   remaining,
   onClose,
+  onAskDelete,
 }: {
   item: MenuItem | null;
   remaining: number;
   onClose: () => void;
+  onAskDelete: (item: MenuItem) => void;
 }) {
   const { saveMenuItem, onTickets } = usePos();
   const [form, setForm] = useState<ItemForm>(() =>
     item ? formFromItem(item, remaining) : { ...emptyForm },
   );
   const [photoError, setPhotoError] = useState("");
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const editing = Boolean(form.id);
+
+  function closeCrop() {
+    setCropSrc((current) => {
+      if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
+      return null;
+    });
+  }
 
   function patch<K extends keyof ItemForm>(key: K, value: ItemForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -313,7 +362,9 @@ function InventoryEditor({
             alt={`${form.name || "Item"} photo`}
           />
         ) : (
-          <span className="logo-preview is-empty dish-preview" aria-hidden="true" />
+          <span className="logo-preview is-empty dish-preview" aria-hidden="true">
+            +
+          </span>
         )}
         <div className="logo-actions">
           <label className="cook-edit logo-file">
@@ -321,15 +372,14 @@ function InventoryEditor({
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp"
+              aria-labelledby="inv-photo-label"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 event.target.value = "";
                 if (!file) return;
                 setPhotoError("");
-                void readDishPhotoFile(file)
-                  .then((imageDataUrl) => {
-                    setForm((current) => ({ ...current, imageDataUrl }));
-                  })
+                void openDishPhotoFile(file)
+                  .then((src) => setCropSrc(src))
                   .catch((error: unknown) => {
                     setPhotoError(
                       error instanceof Error
@@ -341,14 +391,26 @@ function InventoryEditor({
             />
           </label>
           {form.imageDataUrl ? (
-            <button
-              type="button"
-              className="ghost-btn"
-              onClick={() => patch("imageDataUrl", null)}
-            >
-              Remove photo
-            </button>
+            <>
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => setCropSrc(form.imageDataUrl)}
+              >
+                Adjust crop
+              </button>
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => patch("imageDataUrl", null)}
+              >
+                Remove photo
+              </button>
+            </>
           ) : null}
+          <p className="subhead dish-photo-hint">
+            Crop every photo to a square so dishes line up on the Orders screen.
+          </p>
         </div>
       </div>
       {photoError ? (
@@ -356,9 +418,6 @@ function InventoryEditor({
           {photoError}
         </p>
       ) : null}
-      <p className="subhead">
-        A clear plate photo helps staff find the dish on the Orders screen.
-      </p>
       <label className="check-row" htmlFor="inv-active">
         <input
           id="inv-active"
@@ -372,17 +431,116 @@ function InventoryEditor({
         {editing ? "Save changes" : "Add to menu"}
       </button>
       {editing ? (
-        <button
-          type="button"
-          className="ghost-btn modal-cancel"
-          onClick={() => {
-            setForm({ ...emptyForm });
-            onClose();
-          }}
-        >
-          Cancel edit
-        </button>
+        <>
+          <button
+            type="button"
+            className="ghost-btn modal-cancel"
+            onClick={() => {
+              setForm({ ...emptyForm });
+              onClose();
+            }}
+          >
+            Cancel edit
+          </button>
+          {item ? (
+            <button
+              type="button"
+              className="btn-danger"
+              onClick={() => onAskDelete(item)}
+            >
+              Delete from menu
+            </button>
+          ) : null}
+        </>
       ) : null}
+      {cropSrc ? (
+        <DishPhotoCrop
+          src={cropSrc}
+          onCancel={closeCrop}
+          onApply={(imageDataUrl) => {
+            setForm((current) => ({ ...current, imageDataUrl }));
+            closeCrop();
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7h16" />
+      <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+      <path d="M6 7l1 13h10l1-13" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
+function DeleteDishDialog({
+  item,
+  held,
+  onCancel,
+  onConfirm,
+}: {
+  item: MenuItem;
+  held: number;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-dish-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 id="delete-dish-title">Delete this dish?</h2>
+        <p className="subhead">
+          {item.name} will leave the menu and inventory.{" "}
+          {held
+            ? `Open tickets keep ${held} already sent.`
+            : "This does not change past sales."}
+        </p>
+        <button className="btn-danger" type="button" onClick={onConfirm}>
+          Delete {item.name}
+        </button>
+        <button className="ghost-btn modal-cancel" type="button" onClick={onCancel}>
+          Keep it
+        </button>
+      </div>
     </div>
   );
 }

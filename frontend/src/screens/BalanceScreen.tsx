@@ -96,7 +96,21 @@ export function BalanceScreen() {
           </p>
         </div>
         <div className="head-tools">
-          <DateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} />
+          <div className="range-row">
+            <DateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} />
+            <button
+              type="button"
+              className="range-today"
+              disabled={from === today && to === today}
+              onClick={() => {
+                const day = todayISO();
+                setFrom(day);
+                setTo(day);
+              }}
+            >
+              Today
+            </button>
+          </div>
           <ExportButtons onExport={exportBalance} />
           <div className="dash-kpis">
             <p>

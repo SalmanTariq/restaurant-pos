@@ -64,6 +64,7 @@ type PosContextValue = {
   billOrder: (orderId: string) => void;
   payOrder: (orderId: string, payment: PaymentMethod) => void;
   saveMenuItem: (item: MenuItem) => void;
+  deleteMenuItem: (id: string) => void;
   refreshFloor: () => void;
   expenses: ExpenseRow[];
   staff: StaffMember[];
@@ -559,6 +560,11 @@ export function PosProvider({
     });
   }
 
+  function deleteMenuItem(id: string) {
+    if (!id) return;
+    setMenu((current) => current.filter((entry) => entry.id !== id));
+  }
+
   const todayOpen = days.find((day) => day.date === todayISO()) ?? null;
 
   const startDay = useCallback((pettyCash: number, openedBy: string) => {
@@ -615,6 +621,7 @@ export function PosProvider({
     billOrder,
     payOrder,
     saveMenuItem,
+    deleteMenuItem,
     refreshFloor,
     expenses,
     staff,

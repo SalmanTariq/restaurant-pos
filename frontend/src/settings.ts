@@ -100,7 +100,9 @@ export function readLogoFile(file: File): Promise<string> {
   });
 }
 
-export function readDishPhotoFile(file: File): Promise<string> {
+export const DISH_PHOTO_SIZE = 720;
+
+export function openDishPhotoFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith("image/")) {
       reject(new Error("Choose a PNG or JPG photo."));
@@ -110,28 +112,30 @@ export function readDishPhotoFile(file: File): Promise<string> {
       reject(new Error("Photo must be under 8 MB."));
       return;
     }
-    const image = new Image();
-    const url = URL.createObjectURL(file);
-    image.onload = () => {
-      const max = 720;
-      const scale = Math.min(1, max / Math.max(image.width, image.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        URL.revokeObjectURL(url);
-        reject(new Error("Could not read that photo."));
-        return;
-      }
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", 0.82));
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not read that photo."));
-    };
-    image.src = url;
+    resolve(URL.createObjectURL(file));
   });
 }
+
+export function exportSquareDishPhoto(
+  image: HTMLImageElement,
+  panX: number,
+  panY: number,
+  zoom: number,
+): string {
+  const z = Math.min(3, Math.max(1, zoom));
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  const crop = Math.min(width, height) / z;
+  const x = Math.min(width - crop, Math.max(0, panX * (width - crop)));
+  const y = Math.min(height - crop, Math.max(0, panY * (height - crop)));
+  const canvas = document.createElement("canvas");
+  canvas.width = DISH_PHOTO_SIZE;
+  canvas.height = DISH_PHOTO_SIZE;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not crop that photo.");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(image, x, y, crop, crop, 0, 0, DISH_PHOTO_SIZE, DISH_PHOTO_SIZE);
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
