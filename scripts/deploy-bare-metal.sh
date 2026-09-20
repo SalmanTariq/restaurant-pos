@@ -195,6 +195,7 @@ sync_app() {
     --exclude '.git/' \
     --exclude 'node_modules/' \
     --exclude 'dist/' \
+    --exclude '*.tsbuildinfo' \
     --exclude 'coverage/' \
     --exclude '.env' \
     --exclude 'frontend/src-tauri/' \
@@ -283,8 +284,14 @@ build_app() {
     export npm_config_fund=false
     export NODE_OPTIONS='--max-old-space-size=512'
     cd '$INSTALL_DIR/backend'
+    rm -rf dist tsconfig.build.tsbuildinfo tsconfig.tsbuildinfo
     npm ci --no-audit --no-fund
     npm run build
+    if [[ ! -f dist/main.js && ! -f dist/src/main.js ]]; then
+      echo 'Nest build produced no main.js. dist contains:' >&2
+      ls -la dist >&2 || true
+      exit 1
+    fi
     cd '$INSTALL_DIR/frontend'
     npm ci --no-audit --no-fund
     VITE_API_URL='$PUBLIC_ORIGIN' npm run build
