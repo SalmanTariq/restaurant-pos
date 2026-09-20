@@ -26,6 +26,22 @@ export function groupMenuSections(
   return sections;
 }
 
+export function placeMenuItem(
+  menu: MenuItem[],
+  fromId: string,
+  toId: string,
+): MenuItem[] {
+  if (!fromId || !toId || fromId === toId) return menu;
+  const from = menu.findIndex((item) => item.id === fromId);
+  const to = menu.findIndex((item) => item.id === toId);
+  if (from < 0 || to < 0) return menu;
+  const next = menu.filter((item) => item.id !== fromId);
+  const insert = next.findIndex((item) => item.id === toId);
+  if (insert < 0) return menu;
+  next.splice(insert, 0, menu[from]);
+  return next;
+}
+
 export function useMenuScroll(sectionNames: string[]) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const lock = useRef(false);

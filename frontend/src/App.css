@@ -1442,6 +1442,41 @@ select:focus-visible {
   min-width: 0;
 }
 
+.cook-card.is-sortable .cook-head {
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+}
+
+.cook-grip {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink-soft);
+  cursor: grab;
+  touch-action: none;
+}
+
+.cook-board.is-sorting {
+  user-select: none;
+}
+
+.cook-card.is-dragging {
+  opacity: 0.4;
+}
+
+.cook-card.is-drop {
+  box-shadow: 0 0 0 3px var(--tandoor);
+}
+
+.cook-card.is-dragging .cook-grip,
+.cook-board.is-sorting .cook-grip {
+  cursor: grabbing;
+}
+
 .cook-thumb {
   width: 56px;
   height: 56px;

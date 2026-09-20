@@ -36,6 +36,7 @@ import type {
 import { SETTINGS_KEY, isLogoDataUrl, loadSettings } from "./settings";
 import { readTenantItem, writeTenantItem } from "./tenant-storage";
 import { api } from "./api";
+import { placeMenuItem } from "./menu-board";
 import {
   addMenuCategory,
   mergeMenuCategories,
@@ -76,6 +77,7 @@ type PosContextValue = {
   payOrder: (orderId: string, payment: PaymentMethod) => void;
   saveMenuItem: (item: MenuItem) => void;
   deleteMenuItem: (id: string) => void;
+  moveMenuItem: (fromId: string, toId: string) => void;
   refreshFloor: () => void;
   expenses: ExpenseRow[];
   staff: StaffMember[];
@@ -620,6 +622,10 @@ export function PosProvider({
     setMenu((current) => current.filter((entry) => entry.id !== id));
   }
 
+  function moveMenuItem(fromId: string, toId: string) {
+    setMenu((current) => placeMenuItem(current, fromId, toId));
+  }
+
   function addCategory(name: string) {
     const next = addMenuCategory(categories, name);
     if (!next.ok) return next.error;
@@ -718,6 +724,7 @@ export function PosProvider({
     payOrder,
     saveMenuItem,
     deleteMenuItem,
+    moveMenuItem,
     refreshFloor,
     expenses,
     staff,

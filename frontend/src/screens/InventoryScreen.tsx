@@ -2,8 +2,10 @@ import {
   memo,
   useCallback,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { rupees, stockLabel, stockTone } from "../demo-data";
 import { usePos } from "../pos-store";
@@ -84,8 +86,8 @@ export function InventoryScreen() {
           <h1>Inventory</h1>
           <p className="subhead">
             {settings.useInventory
-              ? "Record what the kitchen cooked. Open and paid orders come off remaining stock."
-              : "Add and edit dishes. Stock counting is off in Settings."}
+              ? "Record what the kitchen cooked. Drag a dish to set its place on Order."
+              : "Add and edit dishes. Drag a dish to set its place on Order."}
           </p>
         </div>
       </div>
@@ -130,6 +132,7 @@ export function InventoryScreen() {
         onEdit={onEdit}
         onAskDelete={askDelete}
         showStock={settings.useInventory}
+        canDrag={!query.trim()}
       />
       {pendingDelete ? (
         <DeleteDishDialog
@@ -153,15 +156,21 @@ const CookBoard = memo(function CookBoard({
   onEdit,
   onAskDelete,
   showStock,
+  canDrag,
 }: {
   rows: MenuItem[];
   editingId: string;
   onEdit: (item: MenuItem) => void;
   onAskDelete: (item: MenuItem) => void;
   showStock: boolean;
+  canDrag: boolean;
 }) {
-  const { available, onTickets, addCooked } = usePos();
+  const { available, onTickets, addCooked, moveMenuItem } = usePos();
   const [cookQty, setCookQty] = useState<Record<string, string>>({});
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const dragIdRef = useRef<string | null>(null);
+  const moved = useRef(false);
 
   function qtyFor(id: string) {
     return cookQty[id] ?? "10";
@@ -173,18 +182,85 @@ const CookBoard = memo(function CookBoard({
     addCooked(itemId, qty);
   }
 
+  function onCardPointerDown(event: ReactPointerEvent<HTMLButtonElement>, id: string) {
+    if (!canDrag || event.button !== 0) return;
+    event.preventDefault();
+    moved.current = false;
+    dragIdRef.current = id;
+    setDragId(id);
+    setOverId(id);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function onCardPointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!dragIdRef.current) return;
+    if (Math.abs(event.movementX) + Math.abs(event.movementY) > 2) {
+      moved.current = true;
+    }
+    const node = document.elementFromPoint(event.clientX, event.clientY);
+    const card = node?.closest("[data-menu-id]") as HTMLElement | null;
+    const next = card?.dataset.menuId ?? null;
+    if (next) setOverId(next);
+  }
+
+  function onCardPointerUp(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (!dragIdRef.current) return;
+    const from = dragIdRef.current;
+    const node = document.elementFromPoint(event.clientX, event.clientY);
+    const card = node?.closest("[data-menu-id]") as HTMLElement | null;
+    const to = card?.dataset.menuId ?? overId;
+    dragIdRef.current = null;
+    setDragId(null);
+    setOverId(null);
+    if (to && from !== to) moveMenuItem(from, to);
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // already released
+    }
+  }
+
   return (
-    <ul className="cook-board">
+    <ul className={dragId ? "cook-board is-sorting" : "cook-board"}>
       {rows.map((item) => {
         const left = available(item.id);
         const held = onTickets(item.id);
         const tone = stockTone(left);
+        const classes = [
+          "cook-card",
+          editingId === item.id ? "is-editing" : "",
+          canDrag ? "is-sortable" : "",
+          dragId === item.id ? "is-dragging" : "",
+          overId === item.id && dragId && dragId !== item.id ? "is-drop" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
         return (
           <li
             key={item.id}
-            className={editingId === item.id ? "cook-card is-editing" : "cook-card"}
+            data-menu-id={item.id}
+            className={classes}
+            onClickCapture={(event) => {
+              if (!moved.current) return;
+              event.preventDefault();
+              event.stopPropagation();
+            }}
           >
             <div className="cook-head">
+              {canDrag ? (
+                <button
+                  type="button"
+                  className="cook-grip"
+                  aria-label={`Move ${item.name} on the order screen`}
+                  title="Drag to reorder"
+                  onPointerDown={(event) => onCardPointerDown(event, item.id)}
+                  onPointerMove={onCardPointerMove}
+                  onPointerUp={onCardPointerUp}
+                  onPointerCancel={onCardPointerUp}
+                >
+                  <GripIcon />
+                </button>
+              ) : null}
               {item.imageDataUrl ? (
                 <img className="cook-thumb" src={item.imageDataUrl} alt="" />
               ) : (
@@ -494,6 +570,25 @@ function InventoryEditor({
         />
       ) : null}
     </div>
+  );
+}
+
+function GripIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <circle cx="9" cy="6" r="1.6" />
+      <circle cx="15" cy="6" r="1.6" />
+      <circle cx="9" cy="12" r="1.6" />
+      <circle cx="15" cy="12" r="1.6" />
+      <circle cx="9" cy="18" r="1.6" />
+      <circle cx="15" cy="18" r="1.6" />
+    </svg>
   );
 }
 
