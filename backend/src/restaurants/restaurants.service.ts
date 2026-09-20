@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -11,13 +10,14 @@ import {
   Restaurant,
   type RestaurantStatus,
 } from '../database/entities/restaurant.entity';
+import {
+  parseCreateRestaurant,
+  parsePassword,
+  parseRestaurantStatus,
+  type CreateRestaurantInput,
+} from './shop-input';
 
-export type CreateRestaurantInput = {
-  name: string;
-  ownerName: string;
-  ownerEmail: string;
-  ownerPassword: string;
-};
+export type { CreateRestaurantInput } from './shop-input';
 
 export type RestaurantListItem = {
   id: string;
@@ -29,10 +29,6 @@ export type RestaurantListItem = {
 };
 
 type OwnerRow = { email: string; restaurantId: string };
-
-function trim(value: unknown) {
-  return typeof value === 'string' ? value.trim() : '';
-}
 
 function toIso(value: Date | null) {
   return value ? value.toISOString() : null;
@@ -56,21 +52,8 @@ export class RestaurantsService {
   }
 
   async create(input: CreateRestaurantInput): Promise<RestaurantListItem> {
-    const name = trim(input.name);
-    const ownerName = trim(input.ownerName);
-    const ownerEmail = trim(input.ownerEmail).toLowerCase();
-    const ownerPassword = typeof input.ownerPassword === 'string'
-      ? input.ownerPassword
-      : '';
-
-    if (!name) throw new BadRequestException('Restaurant name is required.');
-    if (!ownerName) throw new BadRequestException('Owner name is required.');
-    if (!ownerEmail.includes('@')) {
-      throw new BadRequestException('Owner email is required.');
-    }
-    if (ownerPassword.length < 8) {
-      throw new BadRequestException('Owner password must be at least 8 characters.');
-    }
+    const { name, ownerName, ownerEmail, ownerPassword } =
+      parseCreateRestaurant(input);
 
     const restaurant = await this.restaurants.save(
       this.restaurants.create({ name, status: 'active' }),
@@ -102,22 +85,17 @@ export class RestaurantsService {
   }
 
   async setStatus(id: string, status: RestaurantStatus) {
-    if (status !== 'active' && status !== 'disabled') {
-      throw new BadRequestException('Status must be active or disabled.');
-    }
+    const next = parseRestaurantStatus(status);
     const restaurant = await this.restaurants.findOne({ where: { id } });
     if (!restaurant) throw new NotFoundException('Restaurant not found.');
-    restaurant.status = status;
+    restaurant.status = next;
     await this.restaurants.save(restaurant);
     const owners = await this.ownerEmails();
     return this.toItem(restaurant, owners.get(restaurant.id) ?? null);
   }
 
   async resetOwnerPassword(id: string, password: string) {
-    const next = typeof password === 'string' ? password : '';
-    if (next.length < 8) {
-      throw new BadRequestException('Password must be at least 8 characters.');
-    }
+    const next = parsePassword(password);
     const restaurant = await this.restaurants.findOne({ where: { id } });
     if (!restaurant) throw new NotFoundException('Restaurant not found.');
 

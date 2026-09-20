@@ -29,4 +29,12 @@ describe('httpOrigins', () => {
     process.env.PUBLIC_ORIGIN = 'https://pos.example.com';
     expect(httpOrigins()).toContain('https://pos.example.com');
   });
+
+  it('splits extra CORS origins and de-duplicates', () => {
+    process.env.CORS_ORIGINS = 'https://a.example, https://b.example, https://a.example';
+    process.env.BETTER_AUTH_URL = 'https://a.example';
+    const origins = httpOrigins();
+    expect(origins.filter((value) => value === 'https://a.example')).toHaveLength(1);
+    expect(origins).toContain('https://b.example');
+  });
 });

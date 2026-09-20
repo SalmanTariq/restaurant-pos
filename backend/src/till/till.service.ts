@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { BusinessDay } from '../database/entities/business-day.entity';
@@ -11,103 +11,27 @@ import { Restaurant } from '../database/entities/restaurant.entity';
 import { WageStaff } from '../database/entities/wage-staff.entity';
 import { DEFAULT_FLOOR, DEFAULT_MENU } from './default-catalog';
 import { mergeMenuCategories } from './menu-categories';
+import {
+  asDate,
+  money,
+  moneyStr,
+  normalizeTillSnapshot,
+  readLayout,
+  type TillOrder,
+  type TillSnapshot,
+} from './till-snapshot';
 
-export type TillMenuItem = {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  stock: number;
-  active: boolean;
-  imageDataUrl: string | null;
-};
-
-export type TillLine = {
-  id: string;
-  name: string;
-  price: number;
-  qty: number;
-};
-
-export type TillOrder = {
-  id: string;
-  token: number;
-  type: 'takeaway' | 'dine-in';
-  tableId: string | null;
-  lines: TillLine[];
-  status: 'open' | 'billed' | 'paid';
-  date: string;
-  time: string;
-  payment?: 'cash' | 'online';
-};
-
-export type TillExpense = {
-  id: string;
-  title: string;
-  category: string;
-  amount: number;
-  date: string;
-  notes: string;
-  staffId?: string;
-};
-
-export type TillStaff = {
-  id: string;
-  name: string;
-  dailyWage: number;
-};
-
-export type TillDay = {
-  date: string;
-  openedAt: string;
-  pettyCash: number;
-  openedBy: string;
-};
-
-export type TillSettings = {
-  restaurantName: string;
-  logoDataUrl: string | null;
-  requirePettyCash: boolean;
-  useInventory: boolean;
-};
-
-export type TillLayout = {
-  id: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  shape: 'round' | 'rect';
-  kind?: 'table' | 'counter';
-};
-
-export type TillSnapshot = {
-  menu: TillMenuItem[];
-  orders: TillOrder[];
-  nextToken: number;
-  expenses: TillExpense[];
-  staff: TillStaff[];
-  days: TillDay[];
-  settings: TillSettings;
-  layout: TillLayout[];
-  categories: string[];
-};
-
-const LOGO_PATTERN = /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i;
-
-function money(value: unknown) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function moneyStr(value: number) {
-  return value.toFixed(2);
-}
-
-function asDate(value: string | Date) {
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  return String(value).slice(0, 10);
-}
+export type {
+  TillDay,
+  TillExpense,
+  TillLayout,
+  TillLine,
+  TillMenuItem,
+  TillOrder,
+  TillSettings,
+  TillSnapshot,
+  TillStaff,
+} from './till-snapshot';
 
 @Injectable()
 export class TillService {
@@ -201,7 +125,7 @@ export class TillService {
         requirePettyCash: restaurant.requirePettyCash !== false,
         useInventory: restaurant.useInventory !== false,
       },
-      layout: this.readLayout(restaurant.floorPlan),
+      layout: readLayout(restaurant.floorPlan),
       categories: mergeMenuCategories(
         restaurant.menuCategories,
         menu.map((item) => item.category),
@@ -211,7 +135,7 @@ export class TillService {
 
   async save(restaurantId: string, body: Partial<TillSnapshot>) {
     await this.requireRestaurant(restaurantId);
-    const snapshot = this.normalize(body);
+    const snapshot = normalizeTillSnapshot(body);
     await this.dataSource.transaction(async (em) => {
       const restaurant = await em.findOneByOrFail(Restaurant, {
         id: restaurantId,
@@ -421,128 +345,6 @@ export class TillService {
         price: money(line.unitPrice),
         qty: line.quantity,
       })),
-    };
-  }
-
-  private readLayout(value: unknown): TillLayout[] {
-    if (!Array.isArray(value) || value.length === 0) return DEFAULT_FLOOR;
-    const pieces = value
-      .map((entry) => this.asLayout(entry))
-      .filter((piece): piece is TillLayout => piece !== null);
-    return pieces.length > 0 ? pieces : DEFAULT_FLOOR;
-  }
-
-  private asLayout(value: unknown): TillLayout | null {
-    if (!value || typeof value !== 'object') return null;
-    const entry = value as TillLayout;
-    if (typeof entry.id !== 'string' || !entry.id) return null;
-    const x = Number(entry.x);
-    const y = Number(entry.y);
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-    return {
-      id: entry.id,
-      x,
-      y,
-      w: Number(entry.w) || 128,
-      h: Number(entry.h) || 128,
-      shape: entry.shape === 'rect' ? 'rect' : 'round',
-      kind: entry.kind === 'counter' ? 'counter' : 'table',
-    };
-  }
-
-  private normalize(body: Partial<TillSnapshot>): TillSnapshot {
-    if (!Array.isArray(body.menu)) {
-      throw new BadRequestException('Menu is required.');
-    }
-    const restaurantName =
-      typeof body.settings?.restaurantName === 'string' &&
-      body.settings.restaurantName.trim()
-        ? body.settings.restaurantName.trim()
-        : 'Restaurant';
-    const logo = body.settings?.logoDataUrl ?? null;
-    const menu = body.menu.map((item, index) => {
-      const image = item?.imageDataUrl ?? null;
-      return {
-        id: String(item?.id || `item-${index}`),
-        name: String(item?.name || 'Item').trim() || 'Item',
-        category: String(item?.category || 'Other'),
-        price: Math.max(0, money(item?.price)),
-        stock: Math.max(0, Math.floor(money(item?.stock))),
-        active: item?.active !== false,
-        imageDataUrl:
-          typeof image === 'string' && LOGO_PATTERN.test(image) ? image : null,
-      };
-    });
-    return {
-      menu,
-      orders: Array.isArray(body.orders)
-        ? body.orders.map((order, index) => this.normalizeOrder(order, index))
-        : [],
-      nextToken: Math.max(1, Math.floor(money(body.nextToken) || 1)),
-      expenses: Array.isArray(body.expenses)
-        ? body.expenses.map((row, index) => ({
-            id: String(row?.id || `exp-${index}`),
-            title: String(row?.title || 'Expense').trim() || 'Expense',
-            category: String(row?.category || 'Other'),
-            amount: Math.max(0, money(row?.amount)),
-            date: String(row?.date || '').slice(0, 10),
-            notes: String(row?.notes || ''),
-            staffId: row?.staffId ? String(row.staffId) : undefined,
-          }))
-        : [],
-      staff: Array.isArray(body.staff)
-        ? body.staff.map((row, index) => ({
-            id: String(row?.id || `staff-${index}`),
-            name: String(row?.name || 'Staff').trim() || 'Staff',
-            dailyWage: Math.max(0, money(row?.dailyWage)),
-          }))
-        : [],
-      days: Array.isArray(body.days)
-        ? body.days.map((row) => ({
-            date: String(row?.date || '').slice(0, 10),
-            openedAt: String(row?.openedAt || new Date().toISOString()),
-            pettyCash: Math.max(0, money(row?.pettyCash)),
-            openedBy: String(row?.openedBy || 'Staff'),
-          }))
-        : [],
-      settings: {
-        restaurantName,
-        logoDataUrl: typeof logo === 'string' && LOGO_PATTERN.test(logo) ? logo : null,
-        requirePettyCash: body.settings?.requirePettyCash !== false,
-        useInventory: body.settings?.useInventory !== false,
-      },
-      layout: this.readLayout(body.layout),
-      categories: mergeMenuCategories(
-        body.categories,
-        menu.map((item) => item.category),
-      ),
-    };
-  }
-
-  private normalizeOrder(order: TillOrder, index: number): TillOrder {
-    const payment =
-      order?.payment === 'online' || order?.payment === 'cash'
-        ? order.payment
-        : undefined;
-    const status =
-      order?.status === 'billed' || order?.status === 'paid' ? order.status : 'open';
-    return {
-      id: String(order?.id || `ord-${index}`),
-      token: Math.max(1, Math.floor(money(order?.token) || index + 1)),
-      type: order?.type === 'dine-in' ? 'dine-in' : 'takeaway',
-      tableId: order?.tableId ? String(order.tableId) : null,
-      date: String(order?.date || '').slice(0, 10),
-      time: String(order?.time || ''),
-      status,
-      payment,
-      lines: Array.isArray(order?.lines)
-        ? order.lines.map((line) => ({
-            id: String(line?.id || ''),
-            name: String(line?.name || 'Item'),
-            price: Math.max(0, money(line?.price)),
-            qty: Math.max(1, Math.floor(money(line?.qty) || 1)),
-          }))
-        : [],
     };
   }
 }

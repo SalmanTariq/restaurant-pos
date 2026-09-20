@@ -21,6 +21,13 @@ describe('menu categories', () => {
     ]);
   });
 
+  it('treats an empty saved list like missing', () => {
+    expect(mergeMenuCategories([], ['BBQ'])[0]).toBe('BBQ');
+    expect(mergeMenuCategories([], ['BBQ'])).toEqual(
+      mergeMenuCategories(undefined, ['BBQ']),
+    );
+  });
+
   it('adds a unique trimmed name', () => {
     expect(addMenuCategory(['Karahi'], '  BBQ  ')).toEqual({
       ok: true,
@@ -56,5 +63,18 @@ describe('menu categories', () => {
   it('rewrites dishes when a category is renamed or deleted', () => {
     expect(remapItemCategory('Karahi', 'Karahi', 'Handi')).toBe('Handi');
     expect(remapItemCategory('BBQ', 'Karahi', 'Handi')).toBe('BBQ');
+  });
+
+  it('rejects a rename onto another existing name', () => {
+    expect(renameMenuCategory(['Karahi', 'BBQ'], 'Karahi', 'BBQ').ok).toBe(false);
+  });
+
+  it('allows a case-only rename of the same category', () => {
+    expect(renameMenuCategory(['Karahi'], 'Karahi', 'karahi')).toEqual({
+      ok: true,
+      list: ['karahi'],
+      from: 'Karahi',
+      to: 'karahi',
+    });
   });
 });

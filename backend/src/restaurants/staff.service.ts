@@ -1,7 +1,5 @@
-import {
-  BadRequestException,
-  Injectable,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { parseStaffCreate } from './shop-input';
 import { getAuth, getAuthPool } from '../auth/auth';
 
 export type StaffUser = {
@@ -39,23 +37,7 @@ export class StaffService {
       role?: string;
     },
   ) {
-    const name = typeof input.name === 'string' ? input.name.trim() : '';
-    const email =
-      typeof input.email === 'string' ? input.email.trim().toLowerCase() : '';
-    const password =
-      typeof input.password === 'string' ? input.password : '';
-    const role = input.role === 'admin' ? 'admin' : 'cashier';
-
-    if (!name) throw new BadRequestException('Name is required.');
-    if (!email.includes('@')) {
-      throw new BadRequestException('Email is required.');
-    }
-    if (password.length < 8) {
-      throw new BadRequestException('Password must be at least 8 characters.');
-    }
-    if (input.role === 'platform') {
-      throw new BadRequestException('Cannot create a platform user here.');
-    }
+    const { name, email, password, role } = parseStaffCreate(input);
 
     const auth = await getAuth();
     const created = await auth.api.createUser({
