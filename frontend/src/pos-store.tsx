@@ -37,6 +37,7 @@ import { SETTINGS_KEY, isLogoDataUrl, loadSettings } from "./settings";
 import { readTenantItem, writeTenantItem } from "./tenant-storage";
 import { api } from "./api";
 import { placeMenuItem } from "./menu-board";
+import { mergeInventoryCsv } from "./inventory-csv";
 import {
   addMenuCategory,
   mergeMenuCategories,
@@ -47,8 +48,10 @@ import {
 import {
   clearTillDirty,
   createTillPusher,
+  isBrowserOnline,
   markTillDirty,
   tillIsDirty,
+  type TillSyncState,
 } from "./till-sync";
 
 type PlaceInput = {
@@ -62,6 +65,7 @@ type PlaceInput = {
 type PosContextValue = {
   restaurantId: string;
   ready: boolean;
+  sync: TillSyncState;
   menu: MenuItem[];
   categories: string[];
   addCategory: (name: string) => string | null;
@@ -79,9 +83,11 @@ type PosContextValue = {
   placeOrder: (input: PlaceInput) => PosOrder;
   addItemToOrder: (orderId: string, item: MenuItem) => void;
   bumpOrderItem: (orderId: string, itemId: string, delta: number) => void;
+  setOrderItemQty: (orderId: string, itemId: string, qty: number) => void;
   billOrder: (orderId: string) => void;
   payOrder: (orderId: string, payment: PaymentMethod) => void;
   saveMenuItem: (item: MenuItem) => void;
+  importMenuFromCsv: (text: string) => { error?: string; added: number; updated: number };
   deleteMenuItem: (id: string) => void;
   moveMenuItem: (fromId: string, toId: string) => void;
   refreshFloor: () => void;
@@ -170,6 +176,7 @@ function asMenuItem(value: unknown): MenuItem | null {
   return {
     id: entry.id,
     name: entry.name.trim(),
+    nameUrdu: typeof entry.nameUrdu === "string" ? entry.nameUrdu.trim() : "",
     category: entry.category,
     price: entry.price,
     stock: Math.floor(stock),
@@ -204,23 +211,7 @@ function loadMenu(restaurantId: string): MenuItem[] {
     const saved = parsed
       .map(asMenuItem)
       .filter((item): item is MenuItem => item !== null);
-    const byId = new Map(saved.map((item) => [item.id, item]));
-    const merged = catalog.map((item) => {
-      const prev = byId.get(item.id);
-      byId.delete(item.id);
-      return prev
-        ? {
-            ...item,
-            name: prev.name,
-            category: prev.category || item.category,
-            price: prev.price,
-            stock: prev.stock,
-            active: prev.active,
-            imageDataUrl: prev.imageDataUrl ?? null,
-          }
-        : item;
-    });
-    return [...merged, ...byId.values()];
+    return saved.length > 0 ? saved : catalog;
   } catch {
     return catalog;
   }
@@ -342,9 +333,20 @@ export function PosProvider({
   const [categories, setCategories] = useState<string[]>(() =>
     loadCategories(restaurantId, loadMenu(restaurantId)),
   );
-  const pendingTill = useRef<TillSnapshot | null>(null);
+  const [sync, setSync] = useState<TillSyncState>({
+    status: "saving",
+    error: null,
+  });
+  const lastPushedJson = useRef<string | null>(null);
   const restaurantIdRef = useRef(restaurantId);
   restaurantIdRef.current = restaurantId;
+  const onSavedRef = useRef<(till: TillSnapshot) => void>(() => undefined);
+  const onStatusRef = useRef<(state: TillSyncState) => void>(() => undefined);
+  onSavedRef.current = (till: TillSnapshot) => {
+    lastPushedJson.current = JSON.stringify(till);
+    clearTillDirty(restaurantIdRef.current);
+  };
+  onStatusRef.current = setSync;
   const pusherRef = useRef(
     createTillPusher({
       put: (body) =>
@@ -352,54 +354,77 @@ export function PosProvider({
           method: "PUT",
           body: JSON.stringify(body),
         }),
-      onSaved: () => clearTillDirty(restaurantIdRef.current),
+      onSaved: (till) => onSavedRef.current(till),
+      onStatus: (state) => onStatusRef.current(state),
     }),
   );
 
-  function applyTill(till: TillSnapshot) {
-    setMenu(till.menu);
-    setOrders(till.orders);
-    setNextToken(till.nextToken);
-    setLayout(till.layout.length > 0 ? till.layout : DEFAULT_FLOOR);
-    setExpenses(till.expenses);
-    setStaff(till.staff);
-    setDays(till.days);
-    setSettings(till.settings);
-    setCategories(
-      mergeMenuCategories(
-        till.categories,
-        till.menu.map((item) => item.category),
-      ),
-    );
-    cacheTill(restaurantId, {
+  function normalizedTill(till: TillSnapshot): TillSnapshot {
+    return {
       ...till,
+      layout: till.layout.length > 0 ? till.layout : DEFAULT_FLOOR,
       categories: mergeMenuCategories(
         till.categories,
         till.menu.map((item) => item.category),
       ),
-    });
+    };
+  }
+
+  function applyTill(till: TillSnapshot, synced: boolean) {
+    const next = normalizedTill(till);
+    setMenu(next.menu);
+    setOrders(next.orders);
+    setNextToken(next.nextToken);
+    setLayout(next.layout);
+    setExpenses(next.expenses);
+    setStaff(next.staff);
+    setDays(next.days);
+    setSettings(next.settings);
+    setCategories(next.categories);
+    cacheTill(restaurantId, next);
+    if (synced) {
+      lastPushedJson.current = JSON.stringify(next);
+      clearTillDirty(restaurantId);
+      setSync({ status: "saved", error: null });
+    } else {
+      lastPushedJson.current = null;
+    }
   }
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      const local = localTill(restaurantId);
+      const dirty = tillIsDirty(restaurantId);
       try {
         const remote = await api<TillSnapshot>("/till");
-        const local = localTill(restaurantId);
         const migrate = !tillHasWork(remote) && tillHasWork(local);
-        const keepLocal = tillIsDirty(restaurantId) && local.menu.length > 0;
-        const till = keepLocal || migrate ? local : remote;
-        if (migrate || keepLocal) {
+        const keepLocal = dirty && local.menu.length > 0;
+        if (keepLocal || migrate) {
           markTillDirty(restaurantId);
           await api("/till", {
             method: "PUT",
             body: JSON.stringify(local),
           });
-          clearTillDirty(restaurantId);
+          if (!cancelled) applyTill(local, true);
+          return;
         }
-        if (!cancelled) applyTill(till);
-      } catch {
-        if (!cancelled) applyTill(localTill(restaurantId));
+        if (!cancelled) applyTill(remote, true);
+      } catch (error) {
+        if (cancelled) return;
+        applyTill(local, false);
+        if (dirty) {
+          markTillDirty(restaurantId);
+          pusherRef.current.enqueue(normalizedTill(local));
+        }
+        const message =
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Could not reach the server";
+        setSync({
+          status: isBrowserOnline() ? "error" : "queued",
+          error: isBrowserOnline() ? message : null,
+        });
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -424,10 +449,10 @@ export function PosProvider({
       categories,
     };
     cacheTill(restaurantId, till);
+    const json = JSON.stringify(till);
+    if (json === lastPushedJson.current) return;
     markTillDirty(restaurantId);
-    pendingTill.current = till;
     pusherRef.current.enqueue(till);
-    return () => undefined;
   }, [
     ready,
     restaurantId,
@@ -457,7 +482,7 @@ export function PosProvider({
       window.removeEventListener("pagehide", flush);
       window.removeEventListener("beforeunload", flush);
       document.removeEventListener("visibilitychange", onHide);
-      flush();
+      void pusher.flushNow();
     };
   }, []);
 
@@ -551,16 +576,30 @@ export function PosProvider({
   }
 
   function bumpOrderItem(orderId: string, itemId: string, delta: number) {
+    const order = orders.find((entry) => entry.id === orderId);
+    const line = order?.lines.find((entry) => entry.id === itemId);
+    if (!line) return;
+    setOrderItemQty(orderId, itemId, line.qty + delta);
+  }
+
+  function setOrderItemQty(orderId: string, itemId: string, qty: number) {
+    const order = orders.find((entry) => entry.id === orderId);
+    if (!order || order.status === "paid") return;
+    const line = order.lines.find((entry) => entry.id === itemId);
+    if (!line) return;
+    const n = Math.floor(qty);
+    const max = line.qty + available(itemId);
+    const nextQty = !Number.isFinite(n) || n <= 0 ? 0 : Math.min(n, max);
     setOrders((current) =>
-      current.map((order) => {
-        if (order.id !== orderId || order.status === "paid") return order;
-        if (delta > 0 && available(itemId) <= 0) return order;
-        const lines = order.lines
-          .map((line) =>
-            line.id === itemId ? { ...line, qty: line.qty + delta } : line,
-          )
-          .filter((line) => line.qty > 0);
-        return { ...order, lines };
+      current.map((entry) => {
+        if (entry.id !== orderId || entry.status === "paid") return entry;
+        const lines =
+          nextQty <= 0
+            ? entry.lines.filter((row) => row.id !== itemId)
+            : entry.lines.map((row) =>
+                row.id === itemId ? { ...row, qty: nextQty } : row,
+              );
+        return { ...entry, lines };
       }),
     );
   }
@@ -641,6 +680,19 @@ export function PosProvider({
       const added = addMenuCategory(current, item.category);
       return added.ok ? added.list : current;
     });
+  }
+
+  function importMenuFromCsv(text: string) {
+    let result = mergeInventoryCsv(menu, text);
+    if (result.error) return { error: result.error, added: 0, updated: 0 };
+    setMenu(result.menu);
+    setCategories((current) =>
+      mergeMenuCategories(
+        current,
+        result.menu.map((item) => item.category),
+      ),
+    );
+    return { added: result.added, updated: result.updated };
   }
 
   function deleteMenuItem(id: string) {
@@ -729,6 +781,7 @@ export function PosProvider({
   const value: PosContextValue = {
     restaurantId,
     ready,
+    sync,
     menu,
     categories,
     addCategory,
@@ -746,9 +799,11 @@ export function PosProvider({
     placeOrder,
     addItemToOrder,
     bumpOrderItem,
+    setOrderItemQty,
     billOrder,
     payOrder,
     saveMenuItem,
+    importMenuFromCsv,
     deleteMenuItem,
     moveMenuItem,
     refreshFloor,

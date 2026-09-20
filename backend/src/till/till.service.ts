@@ -59,9 +59,12 @@ export class TillService {
       where: { restaurantId },
       order: { id: 'ASC' },
     });
-    if (menu.length === 0) {
-      await this.seed(restaurant);
-      return this.get(restaurantId);
+    if (menu.length === 0 && restaurant.nextToken <= 1) {
+      const orderCount = await this.orders.count({ where: { restaurantId } });
+      if (orderCount === 0) {
+        await this.seed(restaurant);
+        return this.get(restaurantId);
+      }
     }
 
     const [orders, expenses, staff, days] = await Promise.all([
@@ -88,6 +91,7 @@ export class TillService {
       menu: menu.map((item) => ({
         id: item.clientId,
         name: item.name,
+        nameUrdu: item.nameUrdu ?? '',
         category: item.category,
         price: money(item.salePrice),
         stock: item.stock,
@@ -167,6 +171,7 @@ export class TillService {
             restaurantId,
             clientId: item.id,
             name: item.name,
+            nameUrdu: item.nameUrdu || null,
             category: item.category,
             salePrice: moneyStr(item.price),
             stock: item.stock,
@@ -281,12 +286,14 @@ export class TillService {
   }
 
   private async seed(restaurant: Restaurant) {
+    // Only used for a brand-new shop with no tickets yet. Never run from deploy.
     await this.menu.save(
       DEFAULT_MENU.map((item) =>
         this.menu.create({
           restaurantId: restaurant.id,
           clientId: item.id,
           name: item.name,
+          nameUrdu: item.nameUrdu ?? null,
           category: item.category,
           salePrice: moneyStr(item.price),
           stock: 0,

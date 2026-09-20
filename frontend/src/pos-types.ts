@@ -17,6 +17,7 @@ export type PosOrderStatus = "open" | "billed" | "paid";
 export type MenuItem = {
   id: string;
   name: string;
+  nameUrdu?: string;
   category: string;
   price: number;
   stock: number;

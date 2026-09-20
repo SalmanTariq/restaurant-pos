@@ -5,6 +5,9 @@
 # Usage (as root, from a clone of this repo or after copying it onto the box):
 #   ./scripts/deploy-bare-metal.sh --domain pos.example.com --email you@example.com
 #
+# Later code/schema updates (does not reseed or rewrite env/nginx):
+#   ./scripts/update-bare-metal.sh
+#
 # Optional:
 #   --admin-email     Platform login (defaults to --email)
 #   --admin-password  Platform password (generated if omitted)

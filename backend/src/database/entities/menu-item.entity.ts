@@ -26,6 +26,9 @@ export class MenuItem {
   @Column()
   name: string;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  nameUrdu: string | null;
+
   @Column()
   category: string;
 

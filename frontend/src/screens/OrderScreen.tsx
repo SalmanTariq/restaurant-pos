@@ -6,6 +6,7 @@ import type { CartLine, OrderType } from "../pos-types";
 import { printGuestBill, printKitchenToken } from "../print-bill";
 import { PayDialog } from "./PayDialog";
 import { MenuItemCard } from "./MenuItemCard";
+import { QtyStepper } from "./QtyStepper";
 
 export function OrderScreen({
   orderType,
@@ -60,14 +61,19 @@ export function OrderScreen({
     onCart([...cart, { id, name, price, qty: 1 }]);
   }
 
-  function bump(id: string, delta: number) {
-    if (delta > 0 && available(id, cart) <= 0) return;
+  function setQty(id: string, qty: number) {
+    const line = cart.find((entry) => entry.id === id);
+    if (!line) return;
+    const max = line.qty + available(id, cart);
+    const n = Math.floor(qty);
+    if (!Number.isFinite(n) || n <= 0) {
+      onCart(cart.filter((entry) => entry.id !== id));
+      return;
+    }
     onCart(
-      cart
-        .map((line) =>
-          line.id === id ? { ...line, qty: line.qty + delta } : line,
-        )
-        .filter((line) => line.qty > 0),
+      cart.map((entry) =>
+        entry.id === id ? { ...entry, qty: Math.min(n, max) } : entry,
+      ),
     );
   }
 
@@ -203,20 +209,12 @@ export function OrderScreen({
               {cart.map((line) => (
                 <li key={line.id}>
                   <span>{line.name}</span>
-                  <div className="qty">
-                    <button type="button" onClick={() => bump(line.id, -1)} aria-label={`Remove ${line.name}`}>
-                      −
-                    </button>
-                    <strong>{line.qty}</strong>
-                    <button
-                      type="button"
-                      onClick={() => bump(line.id, 1)}
-                      aria-label={`Add ${line.name}`}
-                      disabled={available(line.id, cart) <= 0}
-                    >
-                      +
-                    </button>
-                  </div>
+                    <QtyStepper
+                      name={line.name}
+                      value={line.qty}
+                      max={line.qty + available(line.id, cart)}
+                      onChange={(qty) => setQty(line.id, qty)}
+                    />
                   <em>{rupees(line.price * line.qty)}</em>
                 </li>
               ))}

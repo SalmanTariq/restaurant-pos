@@ -50,6 +50,7 @@ export function sampleTill(overrides: Record<string, unknown> = {}) {
         price: 950,
         stock: 12,
         active: true,
+        nameUrdu: "چکن کڑاہی (ہاف)",
         imageDataUrl: null,
       },
       {
@@ -143,6 +144,7 @@ export async function mockApi(
   options: {
     user?: MockUser | null;
     till?: Record<string, unknown>;
+    failTillPut?: boolean;
     staff?: Array<{ id: string; name: string; email: string; role: string }>;
     shops?: unknown[];
   } = {},
@@ -228,6 +230,14 @@ export async function mockApi(
     }
 
     if (path === "/till" && method === "PUT") {
+      if (options.failTillPut) {
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "Database write failed" }),
+        });
+        return;
+      }
       const body = request.postDataJSON() as Record<string, unknown>;
       Object.assign(till, body);
       await route.fulfill({

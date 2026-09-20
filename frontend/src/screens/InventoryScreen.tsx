@@ -8,14 +8,16 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { rupees, stockLabel, stockTone } from "../demo-data";
+import { downloadInventoryCsv } from "../inventory-csv";
 import { usePos } from "../pos-store";
 import type { MenuItem } from "../pos-types";
-import { isLogoDataUrl, openDishPhotoFile } from "../settings";
+import { isLogoDataUrl, openDishPhotoFile, restaurantSlug } from "../settings";
 import { DishPhotoCrop } from "./DishPhotoCrop";
 
 const emptyForm = (category: string) => ({
   id: "",
   name: "",
+  nameUrdu: "",
   category,
   price: "",
   remaining: "0",
@@ -36,6 +38,7 @@ function formFromItem(item: MenuItem, remaining: number): ItemForm {
   return {
     id: item.id,
     name: item.name,
+    nameUrdu: item.nameUrdu ?? "",
     category: item.category,
     price: String(item.price),
     remaining: String(remaining),
@@ -49,12 +52,20 @@ function inputValue(event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
 }
 
 export function InventoryScreen() {
-  const { menu, available, deleteMenuItem, onTickets, categories, settings } =
-    usePos();
+  const {
+    menu,
+    available,
+    deleteMenuItem,
+    importMenuFromCsv,
+    onTickets,
+    categories,
+    settings,
+  } = usePos();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [editingId, setEditingId] = useState("");
   const [pendingDelete, setPendingDelete] = useState<MenuItem | null>(null);
+  const [csvNote, setCsvNote] = useState("");
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -63,6 +74,7 @@ export function InventoryScreen() {
       if (!needle) return true;
       return (
         item.name.toLowerCase().includes(needle) ||
+        (item.nameUrdu ?? "").includes(query.trim()) ||
         item.category.toLowerCase().includes(needle)
       );
     });
@@ -96,6 +108,46 @@ export function InventoryScreen() {
               ? "Record what the kitchen cooked. Drag a dish to set its place on Order."
               : "Add and edit dishes. Drag a dish to set its place on Order."}
           </p>
+        </div>
+        <div className="head-tools">
+          <div className="export-block">
+            <span>Menu CSV</span>
+            <div className="export-group" role="group" aria-label="Inventory CSV">
+              <button
+                type="button"
+                onClick={() =>
+                  downloadInventoryCsv(
+                    menu,
+                    `${restaurantSlug(settings.restaurantName)}-inventory`,
+                  )
+                }
+              >
+                Export
+              </button>
+              <label className="csv-import">
+                Import
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  aria-label="Import inventory CSV"
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = "";
+                    if (!file) return;
+                    void file.text().then((text) => {
+                      const result = importMenuFromCsv(text);
+                      setCsvNote(
+                        result.error
+                          ? result.error
+                          : `Updated ${result.updated}, added ${result.added}.`,
+                      );
+                    });
+                  }}
+                />
+              </label>
+            </div>
+            {csvNote ? <p className="subhead">{csvNote}</p> : null}
+          </div>
         </div>
       </div>
 
@@ -281,6 +333,11 @@ const CookBoard = memo(function CookBoard({
               )}
               <p className="cook-name">
                 <strong>{item.name}</strong>
+                {item.nameUrdu ? (
+                  <span className="urdu" lang="ur">
+                    {item.nameUrdu}
+                  </span>
+                ) : null}
                 <span>
                   {item.category}
                   {item.active ? "" : " · hidden"}
@@ -398,6 +455,7 @@ function InventoryEditor({
     saveMenuItem({
       id: form.id || newMenuItemId(),
       name: form.name.trim(),
+      nameUrdu: form.nameUrdu.trim(),
       category: form.category,
       price,
       stock: settings.useInventory
@@ -429,6 +487,16 @@ function InventoryEditor({
         value={form.name}
         autoComplete="off"
         onChange={(event) => patch("name", inputValue(event))}
+      />
+      <label htmlFor="inv-urdu">Urdu name</label>
+      <input
+        id="inv-urdu"
+        type="text"
+        value={form.nameUrdu}
+        autoComplete="off"
+        dir="rtl"
+        lang="ur"
+        onChange={(event) => patch("nameUrdu", inputValue(event))}
       />
       <label htmlFor="inv-cat">Category</label>
       <select

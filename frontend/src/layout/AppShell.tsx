@@ -99,7 +99,7 @@ export function AppShell({
   onScreen: (screen: Screen) => void;
   children: ReactNode;
 }) {
-  const { todayOpen, settings } = usePos();
+  const { todayOpen, settings, sync } = usePos();
   const [moreOpen, setMoreOpen] = useState(false);
   const displayRole = role === "admin" ? "Admin" : "Cashier";
   const moreItems = [
@@ -164,6 +164,11 @@ export function AppShell({
           </div>
         </div>
       </header>
+      {sync.status === "error" && sync.error ? (
+        <p className="sync-banner" role="alert">
+          Could not save to the server: {sync.error}
+        </p>
+      ) : null}
 
       <div className="shell-main">{children}</div>
 

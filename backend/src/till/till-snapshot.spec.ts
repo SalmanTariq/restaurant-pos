@@ -74,6 +74,7 @@ describe('normalizeTillSnapshot', () => {
     });
     expect(snapshot.menu[0]).toMatchObject({
       name: 'Tea',
+      nameUrdu: '',
       category: 'Other',
       price: 0,
       stock: 2,
@@ -89,7 +90,7 @@ describe('normalizeTillSnapshot', () => {
 
   it('keeps named settings, paid orders, and categories', () => {
     const snapshot = normalizeTillSnapshot({
-      menu: [{ id: 'roti', name: 'Roti', category: 'Breads', price: 25, stock: 10 }],
+      menu: [{ id: 'roti', name: 'Roti', nameUrdu: 'روٹی', category: 'Breads', price: 25, stock: 10 }],
       categories: ['Breads', 'Karahi'],
       nextToken: 4.2,
       settings: {
@@ -126,6 +127,7 @@ describe('normalizeTillSnapshot', () => {
     expect(snapshot.settings.requirePettyCash).toBe(false);
     expect(snapshot.settings.useInventory).toBe(false);
     expect(snapshot.nextToken).toBe(4);
+    expect(snapshot.menu[0].nameUrdu).toBe('روٹی');
     expect(snapshot.categories).toEqual(['Breads', 'Karahi']);
     expect(snapshot.orders[0]).toMatchObject({
       status: 'paid',

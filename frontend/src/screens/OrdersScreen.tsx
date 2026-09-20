@@ -6,6 +6,7 @@ import type { PosOrder } from "../pos-types";
 import { printGuestBill, printKitchenToken } from "../print-bill";
 import { PayDialog } from "./PayDialog";
 import { MenuItemCard } from "./MenuItemCard";
+import { QtyStepper } from "./QtyStepper";
 
 function statusLabel(order: PosOrder) {
   if (order.status === "paid") {
@@ -26,7 +27,7 @@ export function OrdersScreen({
     activeOrders,
     available,
     addItemToOrder,
-    bumpOrderItem,
+    setOrderItemQty,
     billOrder,
     payOrder,
     settings,
@@ -187,24 +188,14 @@ export function OrdersScreen({
                         {past ? (
                           <strong>{line.qty}</strong>
                         ) : (
-                          <div className="qty">
-                            <button
-                              type="button"
-                              onClick={() => bumpOrderItem(selected.id, line.id, -1)}
-                              aria-label={`Remove ${line.name}`}
-                            >
-                              −
-                            </button>
-                            <strong>{line.qty}</strong>
-                            <button
-                              type="button"
-                              onClick={() => bumpOrderItem(selected.id, line.id, 1)}
-                              aria-label={`Add ${line.name}`}
-                              disabled={available(line.id) <= 0}
-                            >
-                              +
-                            </button>
-                          </div>
+                          <QtyStepper
+                            name={line.name}
+                            value={line.qty}
+                            max={line.qty + available(line.id)}
+                            onChange={(qty) =>
+                              setOrderItemQty(selected.id, line.id, qty)
+                            }
+                          />
                         )}
                         <em>{rupees(line.price * line.qty)}</em>
                       </li>

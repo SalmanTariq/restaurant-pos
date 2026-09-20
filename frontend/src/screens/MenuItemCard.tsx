@@ -17,8 +17,8 @@ export function MenuItemCard({
   onAdd: () => void;
 }) {
   const label = soldOut
-    ? `${item.name}, sold out`
-    : `${item.name}, ${rupees(item.price)}`;
+    ? `${item.name}${item.nameUrdu ? `, ${item.nameUrdu}` : ""}, sold out`
+    : `${item.name}${item.nameUrdu ? `, ${item.nameUrdu}` : ""}, ${rupees(item.price)}`;
 
   return (
     <button
@@ -44,6 +44,11 @@ export function MenuItemCard({
       </span>
       <span className="item-copy">
         <span className="item-name">{item.name}</span>
+        {item.nameUrdu ? (
+          <span className="item-name-urdu urdu" lang="ur">
+            {item.nameUrdu}
+          </span>
+        ) : null}
         <span className="item-meta">
           <strong>{rupees(item.price)}</strong>
           {stockText ? (

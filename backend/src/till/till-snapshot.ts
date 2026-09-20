@@ -5,6 +5,7 @@ import { mergeMenuCategories } from './menu-categories';
 export type TillMenuItem = {
   id: string;
   name: string;
+  nameUrdu: string;
   category: string;
   price: number;
   stock: number;
@@ -156,6 +157,8 @@ export function normalizeTillSnapshot(body: TillWriteBody): TillSnapshot {
     return {
       id: String(item?.id || `item-${index}`),
       name: String(item?.name || 'Item').trim() || 'Item',
+      nameUrdu:
+        typeof item?.nameUrdu === 'string' ? item.nameUrdu.trim() : '',
       category: String(item?.category || 'Other'),
       price: Math.max(0, money(item?.price)),
       stock: Math.max(0, Math.floor(money(item?.stock))),

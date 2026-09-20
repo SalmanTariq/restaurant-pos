@@ -31,14 +31,14 @@ test.describe("inventory", () => {
     await page.mouse.up();
     await page.getByRole("button", { name: "Edit Chicken Karahi (Half)" }).click();
     await expect(page.getByRole("heading", { name: "Edit item" })).toBeVisible();
-    await page.getByLabel("Name").fill("Chicken Karahi Full Plate");
+    await page.getByLabel("Name", { exact: true }).fill("Chicken Karahi Full Plate");
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByText("Chicken Karahi Full Plate")).toBeVisible();
   });
 
   test("adds a dish with a long name and keeps it after reload", async ({ page }) => {
     const name = "Special Chicken Karahi Half Plate With Extra Ginger";
-    await page.getByLabel("Name").fill(name);
+    await page.getByLabel("Name", { exact: true }).fill(name);
     await page.getByLabel("Category", { exact: true }).selectOption("Karahi");
     await page.getByLabel("Sale price (Rs)").fill("380");
     const saved = page.waitForResponse((response) => {
@@ -56,8 +56,23 @@ test.describe("inventory", () => {
     await expect(page.getByText(name)).toBeVisible();
   });
 
+  test("imports urdu names from csv and shows them on Order", async ({ page }) => {
+    await page.getByLabel("Import inventory CSV").setInputFiles({
+      name: "menu.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(
+        "\uFEFFid,name,name_urdu,category,price,stock,active\nroti,Tandoori Roti,روٹی تازہ,Naan & Roti,25,40,true\n",
+        "utf8",
+      ),
+    });
+    await expect(page.getByText("Updated 1, added 0.")).toBeVisible();
+    await expect(page.getByText("روٹی تازہ")).toBeVisible();
+    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Order", exact: true }).click();
+    await expect(page.getByText("روٹی تازہ")).toBeVisible();
+  });
+
   test("adds a dish to the menu", async ({ page }) => {
-    await page.getByLabel("Name").fill("Seekh Kabab");
+    await page.getByLabel("Name", { exact: true }).fill("Seekh Kabab");
     await page.getByLabel("Category", { exact: true }).selectOption("Karahi");
     await page.getByLabel("Sale price (Rs)").fill("380");
     await page.getByRole("button", { name: "Add to menu" }).click();
@@ -71,7 +86,7 @@ test.describe("categories", () => {
     await signIn(page, "owner@test.com");
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Categories" }).click();
     await expect(page.getByRole("heading", { name: "Categories" })).toBeVisible();
-    await page.getByLabel("Name").fill("Dessert");
+    await page.getByLabel("Name", { exact: true }).fill("Dessert");
     await page.getByRole("button", { name: "Add category" }).click();
     await expect(page.getByText("Dessert")).toBeVisible();
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Order", exact: true }).click();
