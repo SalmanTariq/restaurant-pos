@@ -155,7 +155,16 @@ function kitchenCss() {
 function guestCss() {
   return `
     #pos-print-root .guest-chit h1 { font-size: 16px; margin: 0; letter-spacing: 0.02em; }
-    #pos-print-root .brand { text-align: center; border-bottom: 2px dashed #1a1612; padding-bottom: 10px; }
+    #pos-print-root .brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      white-space: normal;
+      text-align: center;
+      border-bottom: 2px dashed #1a1612;
+      padding-bottom: 10px;
+    }
     #pos-print-root .logo {
       display: block;
       width: 100%;
@@ -191,6 +200,10 @@ function printCss(extra: string) {
     }
     @media print {
       @page { margin: 0; }
+      html, body, #root {
+        height: auto !important;
+        min-height: 0 !important;
+      }
       html, body {
         margin: 0 !important;
         padding: 0 !important;
@@ -210,10 +223,10 @@ function printCss(extra: string) {
 }
 
 function receiptPageSize(root: HTMLElement) {
-  const slip = root.querySelector<HTMLElement>(".slip");
+  const chit = root.querySelector<HTMLElement>(".chit");
   // CSS pixels use 96 dpi. A little extra length keeps the final line clear of
   // the cutter without feeding an entire A4-sized page.
-  const heightMm = Math.max(30, Math.ceil((slip?.getBoundingClientRect().height ?? 0) * 25.4 / 96 + 3));
+  const heightMm = Math.max(30, Math.ceil((chit?.getBoundingClientRect().height ?? 0) * 25.4 / 96 + 3));
   return `@page { size: 80mm ${heightMm}mm; margin: 0; }`;
 }
 
