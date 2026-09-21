@@ -86,6 +86,7 @@ type PosContextValue = {
   setOrderItemQty: (orderId: string, itemId: string, qty: number) => void;
   billOrder: (orderId: string) => void;
   payOrder: (orderId: string, payment: PaymentMethod) => void;
+  deleteOrder: (orderId: string) => void;
   saveMenuItem: (item: MenuItem) => void;
   importMenuFromCsv: (text: string) => { error?: string; added: number; updated: number };
   deleteMenuItem: (id: string) => void;
@@ -298,6 +299,15 @@ function consumeStock(menu: MenuItem[], lines: CartLine[]) {
       .filter((line) => line.id === item.id)
       .reduce((sum, line) => sum + line.qty, 0);
     return used ? { ...item, stock: Math.max(0, item.stock - used) } : item;
+  });
+}
+
+function restoreStock(menu: MenuItem[], lines: CartLine[]) {
+  return menu.map((item) => {
+    const used = lines
+      .filter((line) => line.id === item.id)
+      .reduce((sum, line) => sum + line.qty, 0);
+    return used ? { ...item, stock: item.stock + used } : item;
   });
 }
 
@@ -627,6 +637,15 @@ export function PosProvider({
     }
   }
 
+  function deleteOrder(orderId: string) {
+    const target = orders.find((order) => order.id === orderId);
+    if (!target) return;
+    setOrders((current) => current.filter((order) => order.id !== orderId));
+    if (target.status === "paid" && settings.useInventory) {
+      setMenu((current) => restoreStock(current, target.lines));
+    }
+  }
+
   function addExpense(row: Omit<ExpenseRow, "id">) {
     setExpenses((current) => [
       { ...row, id: `exp-${Date.now()}` },
@@ -802,6 +821,7 @@ export function PosProvider({
     setOrderItemQty,
     billOrder,
     payOrder,
+    deleteOrder,
     saveMenuItem,
     importMenuFromCsv,
     deleteMenuItem,

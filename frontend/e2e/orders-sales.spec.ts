@@ -15,6 +15,17 @@ test.describe("paid orders", () => {
     await expect(page.getByRole("button", { name: /Print bill/ })).toBeVisible();
   });
 
+  test("deletes a paid dummy ticket from Orders", async ({ page }) => {
+    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Orders" }).click();
+    await page.getByRole("tab", { name: /Paid/ }).click();
+    await expect(page.getByRole("heading", { name: "Token 7" })).toBeVisible();
+    await page.getByRole("button", { name: /Delete order/ }).click();
+    await expect(page.getByRole("heading", { name: "Delete token 7?" })).toBeVisible();
+    await page.getByRole("button", { name: "Delete token 7" }).click();
+    await expect(page.getByRole("heading", { name: "Orders" })).toBeVisible();
+    await expect(page.getByText("No tickets yet.")).toBeVisible();
+  });
+
   test("opens a past sale from Sales and prints the bill", async ({ page }) => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Sales" }).click();
     await expect(page.getByRole("heading", { name: "Sales" })).toBeVisible();

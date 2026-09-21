@@ -38,11 +38,7 @@ function slipHeightMm(doc: Document) {
   return Math.min(600, Math.max(24, Math.ceil((px * 25.4) / 96) + 2));
 }
 
-function applyReceiptPage(
-  doc: Document,
-  iframe: HTMLIFrameElement,
-  heightMm: number,
-) {
+function applyReceiptPage(doc: Document, heightMm: number) {
   let style = doc.getElementById("receipt-page");
   if (!style) {
     style = doc.createElement("style");
@@ -72,8 +68,6 @@ function applyReceiptPage(
       }
     }
   `;
-  iframe.style.width = "80mm";
-  iframe.style.height = `${heightMm}mm`;
 }
 
 function sharedCss() {
@@ -243,35 +237,16 @@ function afterLayout(win: Window) {
   });
 }
 
-function printHtml(title: string, html: string) {
-  const frame = document.createElement("iframe");
-  frame.setAttribute("aria-hidden", "true");
-  frame.setAttribute("title", title);
-  frame.style.position = "fixed";
-  frame.style.left = "0";
-  frame.style.top = "0";
-  frame.style.width = "80mm";
-  frame.style.height = "0";
-  frame.style.border = "0";
-  frame.style.opacity = "0";
-  frame.style.overflow = "hidden";
-  frame.style.pointerEvents = "none";
-  document.body.appendChild(frame);
-
-  const doc = frame.contentDocument;
-  const win = frame.contentWindow;
-  if (!doc || !win) {
-    frame.remove();
-    return Promise.resolve();
-  }
-  doc.open();
-  doc.write(html);
-  doc.close();
-
+function finishPrint(win: Window, doc: Document, frame?: HTMLIFrameElement) {
   return waitForImages(doc)
     .then(() => afterLayout(win))
     .then(() => {
-      applyReceiptPage(doc, frame, slipHeightMm(doc));
+      const heightMm = slipHeightMm(doc);
+      applyReceiptPage(doc, heightMm);
+      if (frame) {
+        frame.style.width = "80mm";
+        frame.style.height = `${heightMm}mm`;
+      }
       return afterLayout(win);
     })
     .then(
@@ -282,15 +257,71 @@ function printHtml(title: string, html: string) {
             if (settled) return;
             settled = true;
             win.removeEventListener("afterprint", done);
-            window.setTimeout(() => frame.remove(), 400);
+            window.setTimeout(() => {
+              if (frame) frame.remove();
+              else if (!win.closed) win.close();
+            }, 400);
             resolve();
           };
           win.addEventListener("afterprint", done);
-          win.focus();
-          win.print();
+          try {
+            win.focus();
+            win.print();
+          } catch {
+            window.alert(
+              "Could not open print preview. Allow pop-ups for this site, then try Print bill again.",
+            );
+            done();
+            return;
+          }
           window.setTimeout(done, 120_000);
         }),
     );
+}
+
+function printHtml(title: string, html: string) {
+  const popup = window.open(
+    "",
+    "_blank",
+    "width=360,height=720,menubar=no,toolbar=no,location=no,status=no",
+  );
+  if (popup) {
+    try {
+      popup.document.open();
+      popup.document.write(html);
+      popup.document.close();
+      return finishPrint(popup, popup.document);
+    } catch {
+      popup.close();
+    }
+  }
+
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.setAttribute("title", title);
+  frame.style.position = "fixed";
+  frame.style.right = "0";
+  frame.style.bottom = "0";
+  frame.style.width = "80mm";
+  frame.style.height = "40mm";
+  frame.style.border = "0";
+  frame.style.opacity = "0.02";
+  frame.style.zIndex = "-1";
+  document.body.appendChild(frame);
+
+  const doc = frame.contentDocument;
+  const win = frame.contentWindow;
+  if (!doc || !win) {
+    frame.remove();
+    window.alert(
+      "Could not open print preview. Allow pop-ups for this site, then try again.",
+    );
+    return Promise.resolve();
+  }
+  doc.open();
+  doc.write(html);
+  doc.close();
+  return finishPrint(win, doc, frame);
 }
 
 export function printKitchenToken(

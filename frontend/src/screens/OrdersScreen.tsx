@@ -30,6 +30,7 @@ export function OrdersScreen({
     setOrderItemQty,
     billOrder,
     payOrder,
+    deleteOrder,
     settings,
     categories,
   } = usePos();
@@ -53,6 +54,7 @@ export function OrdersScreen({
     token: number;
     total: number;
   } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PosOrder | null>(null);
   const sections = useMemo(
     () => groupMenuSections(categories, menu),
     [categories, menu],
@@ -224,6 +226,14 @@ export function OrdersScreen({
                       Print bill
                       <span className="urdu">بل</span>
                     </button>
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      onClick={() => setPendingDelete(selected)}
+                    >
+                      Delete order
+                      <span className="urdu">حذف</span>
+                    </button>
                   </>
                 ) : (
                   <>
@@ -262,6 +272,14 @@ export function OrdersScreen({
                     >
                       Pay
                       <span className="urdu">ادائیگی</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      onClick={() => setPendingDelete(selected)}
+                    >
+                      Delete order
+                      <span className="urdu">حذف</span>
                     </button>
                   </>
                 )}
@@ -333,6 +351,49 @@ export function OrdersScreen({
           }}
         />
       )}
+
+      {pendingDelete ? (
+        <div
+          className="modal-backdrop"
+          onClick={() => setPendingDelete(null)}
+        >
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-order-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="delete-order-title">Delete token {pendingDelete.token}?</h2>
+            <p className="subhead">
+              This removes the ticket from Orders and Sales
+              {pendingDelete.status === "paid"
+                ? " and puts its stock back on the menu."
+                : "."}
+            </p>
+            <button
+              className="btn-danger"
+              type="button"
+              onClick={() => {
+                const id = pendingDelete.id;
+                const remaining = visible.filter((order) => order.id !== id);
+                deleteOrder(id);
+                setPendingDelete(null);
+                setSelectedId(remaining[0]?.id ?? null);
+              }}
+            >
+              Delete token {pendingDelete.token}
+            </button>
+            <button
+              className="ghost-btn modal-cancel"
+              type="button"
+              onClick={() => setPendingDelete(null)}
+            >
+              Keep it
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

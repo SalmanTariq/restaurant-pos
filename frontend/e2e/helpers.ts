@@ -156,6 +156,7 @@ export async function mockApi(
 
   await page.addInitScript(() => {
     window.print = () => {};
+    window.open = () => null;
   });
 
   await page.route(/https?:\/\/(localhost|127\.0\.0\.1):3000\//, async (route) => {
