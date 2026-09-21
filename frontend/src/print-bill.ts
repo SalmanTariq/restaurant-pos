@@ -19,21 +19,16 @@ function brandName(brand: { restaurantName?: string }) {
 
 function sharedCss() {
   return `
-    @page { margin: 0; }
-    html, body {
+    #pos-print-root {
+      width: 80mm;
       margin: 0;
       padding: 0;
-      width: 80mm;
-      height: auto;
-      min-height: 0;
-      background: #fff;
-    }
-    body {
-      font-family: "Figtree", "Segoe UI", sans-serif;
       color: #1a1612;
+      background: #fff;
+      font-family: "Figtree", "Segoe UI", sans-serif;
     }
-    .slip { width: 80mm; margin: 0; padding: 0; box-sizing: border-box; }
-    .chit {
+    #pos-print-root .slip { width: 80mm; margin: 0; padding: 0; box-sizing: border-box; }
+    #pos-print-root .chit {
       width: 72mm;
       margin: 0;
       padding: 2mm 4mm 3mm;
@@ -123,40 +118,40 @@ function guestChitHtml(
 
 function kitchenCss() {
   return `
-    .kicker {
+    #pos-print-root .kicker {
       text-align: center;
       font-size: 12px;
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
-    .kitchen {
+    #pos-print-root .kitchen {
       text-align: center;
       font-size: 22px;
       font-weight: 800;
       margin: 4px 0 0;
       letter-spacing: 0.04em;
     }
-    .token {
+    #pos-print-root .token {
       text-align: center;
       font-size: 56px;
       font-weight: 900;
       line-height: 1;
       margin: 8px 0 4px;
     }
-    .kitchen-chit .meta { text-align: center; font-size: 14px; margin-bottom: 10px; }
-    .kitchen-chit table { width: 100%; border-collapse: collapse; font-size: 16px; }
-    .kitchen-chit td { padding: 8px 0; border-bottom: 1px dashed #1a1612; vertical-align: top; }
-    .kitchen-chit .qty { width: 18mm; font-weight: 900; font-size: 20px; }
-    .foot { text-align: center; margin: 8px 0 0; font-size: 12px; font-weight: 700; }
+    #pos-print-root .kitchen-chit .meta { text-align: center; font-size: 14px; margin-bottom: 10px; }
+    #pos-print-root .kitchen-chit table { width: 100%; border-collapse: collapse; font-size: 16px; }
+    #pos-print-root .kitchen-chit td { padding: 8px 0; border-bottom: 1px dashed #1a1612; vertical-align: top; }
+    #pos-print-root .kitchen-chit .qty { width: 18mm; font-weight: 900; font-size: 20px; }
+    #pos-print-root .foot { text-align: center; margin: 8px 0 0; font-size: 12px; font-weight: 700; }
   `;
 }
 
 function guestCss() {
   return `
-    .guest-chit h1 { font-size: 16px; margin: 0; letter-spacing: 0.02em; }
-    .brand { text-align: center; border-bottom: 2px dashed #1a1612; padding-bottom: 10px; }
-    .logo {
+    #pos-print-root .guest-chit h1 { font-size: 16px; margin: 0; letter-spacing: 0.02em; }
+    #pos-print-root .brand { text-align: center; border-bottom: 2px dashed #1a1612; padding-bottom: 10px; }
+    #pos-print-root .logo {
       display: block;
       width: 100%;
       max-width: 56mm;
@@ -164,68 +159,81 @@ function guestCss() {
       margin: 0 auto 10px;
       object-fit: contain;
     }
-    .guest-chit .meta { margin: 10px 0; font-size: 13px; }
-    .guest-chit table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .guest-chit th { text-align: left; border-bottom: 1px solid #1a1612; padding: 4px 0; }
-    .guest-chit td { padding: 6px 0; border-bottom: 1px dotted #cbbfb3; }
-    .guest-chit .qty, .guest-chit .num, .guest-chit th:last-child { text-align: right; }
-    .total { font-size: 18px; font-weight: 800; display: flex; justify-content: space-between; margin-top: 10px; }
-    .thanks { text-align: center; margin: 12px 0 0; font-size: 12px; }
+    #pos-print-root .guest-chit .meta { margin: 10px 0; font-size: 13px; }
+    #pos-print-root .guest-chit table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    #pos-print-root .guest-chit th { text-align: left; border-bottom: 1px solid #1a1612; padding: 4px 0; }
+    #pos-print-root .guest-chit td { padding: 6px 0; border-bottom: 1px dotted #cbbfb3; }
+    #pos-print-root .guest-chit .qty, #pos-print-root .guest-chit .num, #pos-print-root .guest-chit th:last-child { text-align: right; }
+    #pos-print-root .total { font-size: 18px; font-weight: 800; display: flex; justify-content: space-between; margin-top: 10px; }
+    #pos-print-root .thanks { text-align: center; margin: 12px 0 0; font-size: 12px; }
   `;
 }
 
-function receiptDocument(title: string, css: string, inner: string) {
-  return `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>${escapeHtml(title)}</title>
-    <style>
-      ${sharedCss()}
-      ${css}
-    </style>
-  </head>
-  <body>
-    <div class="slip">${inner}</div>
-  </body>
-</html>`;
+function printCss(extra: string) {
+  return `
+    ${sharedCss()}
+    ${extra}
+    @media screen {
+      #pos-print-root {
+        position: fixed;
+        left: 0;
+        top: 0;
+        z-index: -1;
+        pointer-events: none;
+      }
+    }
+    @media print {
+      @page { margin: 0; }
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+      }
+      body.is-printing > :not(#pos-print-root) {
+        display: none !important;
+      }
+      #pos-print-root {
+        position: static !important;
+        z-index: auto !important;
+        width: 80mm;
+      }
+    }
+  `;
 }
 
-function printHtml(title: string, html: string) {
-  const frame = document.createElement("iframe");
-  frame.setAttribute("aria-hidden", "true");
-  frame.setAttribute("title", title);
-  frame.style.position = "fixed";
-  frame.style.left = "-10000px";
-  frame.style.top = "0";
-  frame.style.width = "80mm";
-  frame.style.height = "200mm";
-  frame.style.border = "0";
-  frame.style.background = "#fff";
-  document.body.appendChild(frame);
+function printSlip(title: string, extraCss: string, inner: string) {
+  document.getElementById("pos-print-root")?.remove();
+  document.getElementById("pos-print-style")?.remove();
 
-  const doc = frame.contentDocument;
-  const win = frame.contentWindow;
-  if (!doc || !win) {
-    frame.remove();
-    return Promise.resolve();
-  }
+  const style = document.createElement("style");
+  style.id = "pos-print-style";
+  style.textContent = printCss(extraCss);
 
-  doc.open();
-  doc.write(html);
-  doc.close();
+  const root = document.createElement("div");
+  root.id = "pos-print-root";
+  root.setAttribute("aria-hidden", "true");
+  root.innerHTML = `<div class="slip">${inner}</div>`;
+
+  document.head.appendChild(style);
+  document.body.appendChild(root);
+  document.body.classList.add("is-printing");
+  const previousTitle = document.title;
+  document.title = title;
 
   return new Promise<void>((resolve) => {
     let settled = false;
     const done = () => {
       if (settled) return;
       settled = true;
-      win.removeEventListener("afterprint", done);
-      window.setTimeout(() => frame.remove(), 400);
+      window.removeEventListener("afterprint", done);
+      document.body.classList.remove("is-printing");
+      document.title = previousTitle;
+      style.remove();
+      root.remove();
       resolve();
     };
-    win.addEventListener("afterprint", done);
-    win.print();
+    window.addEventListener("afterprint", done);
+    window.print();
     window.setTimeout(done, 120_000);
   });
 }
@@ -234,13 +242,10 @@ export function printKitchenToken(
   order: PosOrder,
   brand: { restaurantName?: string } = {},
 ) {
-  return printHtml(
+  return printSlip(
     `Kitchen ${order.token}`,
-    receiptDocument(
-      `Kitchen ${order.token}`,
-      kitchenCss(),
-      kitchenChitHtml(order, brand),
-    ),
+    kitchenCss(),
+    kitchenChitHtml(order, brand),
   );
 }
 
@@ -248,12 +253,9 @@ export function printGuestBill(
   order: PosOrder,
   brand: { restaurantName?: string; logoDataUrl?: string | null } = {},
 ) {
-  return printHtml(
+  return printSlip(
     `Bill ${order.token}`,
-    receiptDocument(
-      `Bill ${order.token}`,
-      `${guestCss()}`,
-      guestChitHtml(order, brand),
-    ),
+    guestCss(),
+    guestChitHtml(order, brand),
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { authClient } from "./auth-client";
+import { useShopRoute } from "./app-route";
 import { AppShell } from "./layout/AppShell";
 import { PosProvider, usePos } from "./pos-store";
 import { LoginScreen } from "./screens/LoginScreen";
@@ -15,7 +16,7 @@ import { CategoriesScreen } from "./screens/CategoriesScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { TablesScreen } from "./screens/TablesScreen";
 import { UsersScreen } from "./screens/UsersScreen";
-import type { CartLine, OrderType, Screen } from "./pos-types";
+import type { CartLine, OrderType } from "./pos-types";
 import "./App.css";
 
 function SignedIn({
@@ -26,11 +27,10 @@ function SignedIn({
   role?: string | null;
 }) {
   const { ready, tables, activeOrders, todayOpen, settings, startDay } = usePos();
-  const [screen, setScreen] = useState<Screen>("order");
+  const { screen, ticketId, go } = useShopRoute(role);
   const [orderType, setOrderType] = useState<OrderType>("takeaway");
   const [tableId, setTableId] = useState<string | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [focusOrderId, setFocusOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (tableId && !tables.some((table) => table.id === tableId)) {
@@ -46,12 +46,12 @@ function SignedIn({
 
   useEffect(() => {
     if (screen === "inventory" && role !== "admin") {
-      setScreen("order");
+      go("order", null, true);
     }
-  }, [screen, role]);
+  }, [go, role, screen]);
 
   function openTables() {
-    setScreen("tables");
+    go("tables");
   }
 
   if (!ready) {
@@ -75,7 +75,7 @@ function SignedIn({
   }
 
   return (
-    <AppShell name={name} role={role} screen={screen} onScreen={setScreen}>
+    <AppShell name={name} role={role} screen={screen} onScreen={(next) => go(next)}>
       {screen === "order" && (
         <OrderScreen
           orderType={orderType}
@@ -96,20 +96,19 @@ function SignedIn({
           onSelect={(id) => {
             const existing = activeOrders.find((order) => order.tableId === id);
             if (existing) {
-              setFocusOrderId(existing.id);
-              setScreen("orders");
+              go("orders", existing.id);
               return;
             }
             setTableId(id);
             setOrderType("dine-in");
-            setScreen("order");
+            go("order");
           }}
-          onBack={() => setScreen("order")}
+          onBack={() => go("order")}
         />
       )}
-      {screen === "orders" && <OrdersScreen focusOrderId={focusOrderId} />}
+      {screen === "orders" && <OrdersScreen focusOrderId={ticketId} />}
       {screen === "sales" && (
-        <SalesScreen onOpenExpenses={() => setScreen("expenses")} />
+        <SalesScreen onOpenExpenses={() => go("expenses")} />
       )}
       {screen === "expenses" && <ExpensesScreen />}
       {screen === "balance" && <BalanceScreen />}

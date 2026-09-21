@@ -33,6 +33,12 @@ export function PlatformScreen({ name }: { name: string }) {
   const [resetPending, setResetPending] = useState(false);
   const [resetSaved, setResetSaved] = useState("");
 
+  useEffect(() => {
+    if (window.location.pathname !== "/platform") {
+      window.history.replaceState({}, "", "/platform");
+    }
+  }, []);
+
   async function loadShops() {
     try {
       const rows = await api<RestaurantRow[]>("/platform/restaurants");

@@ -19,7 +19,18 @@ test.describe("sign in", () => {
     await mockApi(page);
     await signIn(page, "owner@test.com");
     await waitForTill(page);
+    await expect(page).toHaveURL(/\/order$/);
     await expect(page.getByRole("heading", { name: "Takeaway" })).toBeVisible();
+  });
+
+  test("puts each till screen on its own URL", async ({ page }) => {
+    await mockApi(page);
+    await signIn(page, "owner@test.com");
+    await waitForTill(page);
+    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Orders" }).click();
+    await expect(page).toHaveURL(/\/orders$/);
+    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Sales" }).click();
+    await expect(page).toHaveURL(/\/sales$/);
   });
 
   test("signs out back to the login card", async ({ page }) => {
