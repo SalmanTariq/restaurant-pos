@@ -30,55 +30,30 @@ function waitForImages(doc: Document) {
   );
 }
 
-function slipHeightMm(doc: Document) {
-  const slip = (doc.querySelector(".slip") ?? doc.querySelector(".chit")) as HTMLElement | null;
-  const px = slip
-    ? Math.ceil(Math.max(slip.scrollHeight, slip.offsetHeight))
-    : Math.ceil(doc.body.scrollHeight);
-  return Math.min(600, Math.max(24, Math.ceil((px * 25.4) / 96) + 2));
-}
-
-function applyReceiptPage(doc: Document, heightMm: number) {
-  let style = doc.getElementById("receipt-page");
-  if (!style) {
-    style = doc.createElement("style");
-    style.id = "receipt-page";
-    doc.head.appendChild(style);
-  }
-  style.textContent = `
-    html, body {
-      margin: 0 !important;
-      padding: 0 !important;
-      width: 80mm !important;
-      height: auto !important;
-      min-height: 0 !important;
-      overflow: hidden !important;
-      background: #fff;
-    }
-    @page {
-      size: 80mm ${heightMm}mm;
-      margin: 0;
-    }
-    @media print {
-      html, body {
-        width: 80mm !important;
-        height: auto !important;
-        min-height: 0 !important;
-        overflow: hidden !important;
-      }
-    }
-  `;
-}
-
 function sharedCss() {
   return `
-    html, body { margin: 0; padding: 0; width: 80mm; height: auto; min-height: 0; }
+    @page { margin: 0; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 80mm;
+      height: auto;
+      min-height: 0;
+      background: #fff;
+    }
     body {
       font-family: "Figtree", "Segoe UI", sans-serif;
       color: #1a1612;
     }
     .slip { width: 80mm; margin: 0; padding: 0; box-sizing: border-box; }
-    .chit { width: 72mm; margin: 0; padding: 2mm 4mm 3mm; box-sizing: border-box; page-break-after: avoid; page-break-inside: avoid; }
+    .chit {
+      width: 72mm;
+      margin: 0;
+      padding: 2mm 4mm 3mm;
+      box-sizing: border-box;
+      page-break-after: avoid;
+      page-break-inside: avoid;
+    }
   `;
 }
 
@@ -237,91 +212,53 @@ function afterLayout(win: Window) {
   });
 }
 
-function finishPrint(win: Window, doc: Document, frame?: HTMLIFrameElement) {
-  return waitForImages(doc)
-    .then(() => afterLayout(win))
-    .then(() => {
-      const heightMm = slipHeightMm(doc);
-      applyReceiptPage(doc, heightMm);
-      if (frame) {
-        frame.style.width = "80mm";
-        frame.style.height = `${heightMm}mm`;
-      }
-      return afterLayout(win);
-    })
-    .then(
-      () =>
-        new Promise<void>((resolve) => {
-          let settled = false;
-          const done = () => {
-            if (settled) return;
-            settled = true;
-            win.removeEventListener("afterprint", done);
-            window.setTimeout(() => {
-              if (frame) frame.remove();
-              else if (!win.closed) win.close();
-            }, 400);
-            resolve();
-          };
-          win.addEventListener("afterprint", done);
-          try {
-            win.focus();
-            win.print();
-          } catch {
-            window.alert(
-              "Could not open print preview. Allow pop-ups for this site, then try Print bill again.",
-            );
-            done();
-            return;
-          }
-          window.setTimeout(done, 120_000);
-        }),
-    );
-}
-
 function printHtml(title: string, html: string) {
-  const popup = window.open(
-    "",
-    "_blank",
-    "width=360,height=720,menubar=no,toolbar=no,location=no,status=no",
-  );
-  if (popup) {
-    try {
-      popup.document.open();
-      popup.document.write(html);
-      popup.document.close();
-      return finishPrint(popup, popup.document);
-    } catch {
-      popup.close();
-    }
-  }
-
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
   frame.setAttribute("title", title);
   frame.style.position = "fixed";
-  frame.style.right = "0";
-  frame.style.bottom = "0";
+  frame.style.left = "-10000px";
+  frame.style.top = "0";
   frame.style.width = "80mm";
-  frame.style.height = "40mm";
+  frame.style.height = "200mm";
   frame.style.border = "0";
-  frame.style.opacity = "0.02";
-  frame.style.zIndex = "-1";
-  document.body.appendChild(frame);
+  frame.style.background = "#fff";
 
-  const doc = frame.contentDocument;
-  const win = frame.contentWindow;
-  if (!doc || !win) {
-    frame.remove();
-    window.alert(
-      "Could not open print preview. Allow pop-ups for this site, then try again.",
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(url);
+      window.setTimeout(() => frame.remove(), 400);
+      resolve();
+    };
+
+    frame.addEventListener(
+      "load",
+      () => {
+        const win = frame.contentWindow;
+        const doc = frame.contentDocument;
+        if (!win || !doc) {
+          done();
+          return;
+        }
+        void waitForImages(doc)
+          .then(() => afterLayout(win))
+          .then(() => {
+            win.addEventListener("afterprint", done);
+            win.print();
+            window.setTimeout(done, 120_000);
+          });
+      },
+      { once: true },
     );
-    return Promise.resolve();
-  }
-  doc.open();
-  doc.write(html);
-  doc.close();
-  return finishPrint(win, doc, frame);
+
+    document.body.appendChild(frame);
+    frame.src = url;
+  });
 }
 
 export function printKitchenToken(

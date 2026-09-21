@@ -271,8 +271,9 @@ export function OrderScreen({
               status: "paid",
               payment,
             });
-            void printKitchenToken(order, settings);
-            void printGuestBill(order, settings);
+            void printKitchenToken(order, settings).then(() =>
+              printGuestBill(order, settings),
+            );
             onCart([]);
             setTicketOpen(false);
           }}
