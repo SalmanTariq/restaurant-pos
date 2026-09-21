@@ -25,17 +25,22 @@ function sharedCss() {
       padding: 0;
       color: #1a1612;
       background: #fff;
-      font-family: "Figtree", "Segoe UI", sans-serif;
+      font-family: Arial, "Segoe UI", sans-serif;
+      font-size: 12px;
+      line-height: 1.25;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     #pos-print-root .slip { width: 80mm; margin: 0; padding: 0; box-sizing: border-box; }
     #pos-print-root .chit {
-      width: 72mm;
+      width: 80mm;
       margin: 0;
-      padding: 2mm 4mm 3mm;
+      padding: 2mm 4mm 4mm;
       box-sizing: border-box;
-      page-break-after: avoid;
-      page-break-inside: avoid;
+      overflow-wrap: anywhere;
     }
+    #pos-print-root table { table-layout: fixed; }
+    #pos-print-root tr { break-inside: avoid; page-break-inside: avoid; }
   `;
 }
 
@@ -141,8 +146,8 @@ function kitchenCss() {
     }
     #pos-print-root .kitchen-chit .meta { text-align: center; font-size: 14px; margin-bottom: 10px; }
     #pos-print-root .kitchen-chit table { width: 100%; border-collapse: collapse; font-size: 16px; }
-    #pos-print-root .kitchen-chit td { padding: 8px 0; border-bottom: 1px dashed #1a1612; vertical-align: top; }
-    #pos-print-root .kitchen-chit .qty { width: 18mm; font-weight: 900; font-size: 20px; }
+    #pos-print-root .kitchen-chit td { padding: 5px 0; border-bottom: 1px dashed #1a1612; vertical-align: top; }
+    #pos-print-root .kitchen-chit .qty { width: 14mm; font-weight: 900; font-size: 20px; }
     #pos-print-root .foot { text-align: center; margin: 8px 0 0; font-size: 12px; font-weight: 700; }
   `;
 }
@@ -162,7 +167,9 @@ function guestCss() {
     #pos-print-root .guest-chit .meta { margin: 10px 0; font-size: 13px; }
     #pos-print-root .guest-chit table { width: 100%; border-collapse: collapse; font-size: 13px; }
     #pos-print-root .guest-chit th { text-align: left; border-bottom: 1px solid #1a1612; padding: 4px 0; }
-    #pos-print-root .guest-chit td { padding: 6px 0; border-bottom: 1px dotted #cbbfb3; }
+    #pos-print-root .guest-chit td { padding: 4px 0; border-bottom: 1px dotted #777; vertical-align: top; }
+    #pos-print-root .guest-chit .qty { width: 8mm; }
+    #pos-print-root .guest-chit .num, #pos-print-root .guest-chit th:last-child { width: 20mm; white-space: nowrap; }
     #pos-print-root .guest-chit .qty, #pos-print-root .guest-chit .num, #pos-print-root .guest-chit th:last-child { text-align: right; }
     #pos-print-root .total { font-size: 18px; font-weight: 800; display: flex; justify-content: space-between; margin-top: 10px; }
     #pos-print-root .thanks { text-align: center; margin: 12px 0 0; font-size: 12px; }
@@ -197,11 +204,20 @@ function printCss(extra: string) {
         z-index: auto !important;
         width: 80mm;
       }
+      #pos-print-root .chit { break-inside: auto; }
     }
   `;
 }
 
+let pendingPrint: Promise<void> = Promise.resolve();
+
 function printSlip(title: string, extraCss: string, inner: string) {
+  const job = pendingPrint.catch(() => {}).then(() => showPrintSlip(title, extraCss, inner));
+  pendingPrint = job;
+  return job;
+}
+
+function showPrintSlip(title: string, extraCss: string, inner: string) {
   document.getElementById("pos-print-root")?.remove();
   document.getElementById("pos-print-style")?.remove();
 
@@ -233,8 +249,16 @@ function printSlip(title: string, extraCss: string, inner: string) {
       resolve();
     };
     window.addEventListener("afterprint", done);
-    window.print();
-    window.setTimeout(done, 120_000);
+    // Let the WebView lay out the receipt before it takes its print snapshot.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      try {
+        window.print();
+        window.setTimeout(done, 120_000);
+      } catch (error) {
+        done();
+        console.error("Could not open the print dialog", error);
+      }
+    }));
   });
 }
 
