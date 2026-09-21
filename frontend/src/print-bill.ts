@@ -213,7 +213,9 @@ function printCss(extra: string) {
         display: none !important;
       }
       #pos-print-root {
-        position: static !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
         z-index: auto !important;
         width: 80mm;
       }
@@ -226,19 +228,20 @@ function receiptPageSize(root: HTMLElement) {
   const chit = root.querySelector<HTMLElement>(".chit");
   // CSS pixels use 96 dpi. A little extra length keeps the final line clear of
   // the cutter without feeding an entire A4-sized page.
-  const heightMm = Math.max(30, Math.ceil((chit?.getBoundingClientRect().height ?? 0) * 25.4 / 96 + 3));
+  // A shorter page than its width is treated as landscape by print viewers.
+  const heightMm = Math.max(81, Math.ceil((chit?.getBoundingClientRect().height ?? 0) * 25.4 / 96 + 3));
   return `@page { size: 80mm ${heightMm}mm; margin: 0; }`;
 }
 
 let pendingPrint: Promise<void> = Promise.resolve();
 
-function printSlip(title: string, extraCss: string, inner: string) {
-  const job = pendingPrint.catch(() => {}).then(() => showPrintSlip(title, extraCss, inner));
+function printSlip(extraCss: string, inner: string) {
+  const job = pendingPrint.catch(() => {}).then(() => showPrintSlip(extraCss, inner));
   pendingPrint = job;
   return job;
 }
 
-function showPrintSlip(title: string, extraCss: string, inner: string) {
+function showPrintSlip(extraCss: string, inner: string) {
   document.getElementById("pos-print-root")?.remove();
   document.getElementById("pos-print-style")?.remove();
 
@@ -255,7 +258,7 @@ function showPrintSlip(title: string, extraCss: string, inner: string) {
   document.body.appendChild(root);
   document.body.classList.add("is-printing");
   const previousTitle = document.title;
-  document.title = title;
+  document.title = "";
 
   return new Promise<void>((resolve) => {
     let settled = false;
@@ -296,7 +299,6 @@ export function printKitchenToken(
   brand: { restaurantName?: string } = {},
 ) {
   return printSlip(
-    `Kitchen ${order.token}`,
     kitchenCss(),
     kitchenChitHtml(order, brand),
   );
@@ -307,7 +309,6 @@ export function printGuestBill(
   brand: { restaurantName?: string; logoDataUrl?: string | null } = {},
 ) {
   return printSlip(
-    `Bill ${order.token}`,
     guestCss(),
     guestChitHtml(order, brand),
   );
