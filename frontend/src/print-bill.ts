@@ -17,19 +17,6 @@ function brandName(brand: { restaurantName?: string }) {
   return (brand.restaurantName ?? DEFAULT_RESTAURANT_NAME).trim() || DEFAULT_RESTAURANT_NAME;
 }
 
-function waitForImages(doc: Document) {
-  return Promise.all(
-    Array.from(doc.images).map((image) =>
-      image.complete
-        ? Promise.resolve()
-        : new Promise<void>((resolve) => {
-            image.addEventListener("load", () => resolve(), { once: true });
-            image.addEventListener("error", () => resolve(), { once: true });
-          }),
-    ),
-  );
-}
-
 function sharedCss() {
   return `
     @page { margin: 0; }
@@ -204,17 +191,7 @@ function receiptDocument(title: string, css: string, inner: string) {
 </html>`;
 }
 
-function afterLayout(win: Window) {
-  return new Promise<void>((resolve) => {
-    win.requestAnimationFrame(() => {
-      win.requestAnimationFrame(() => resolve());
-    });
-  });
-}
-
 function printHtml(title: string, html: string) {
-  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
   frame.setAttribute("title", title);
@@ -225,39 +202,31 @@ function printHtml(title: string, html: string) {
   frame.style.height = "200mm";
   frame.style.border = "0";
   frame.style.background = "#fff";
+  document.body.appendChild(frame);
+
+  const doc = frame.contentDocument;
+  const win = frame.contentWindow;
+  if (!doc || !win) {
+    frame.remove();
+    return Promise.resolve();
+  }
+
+  doc.open();
+  doc.write(html);
+  doc.close();
 
   return new Promise<void>((resolve) => {
     let settled = false;
     const done = () => {
       if (settled) return;
       settled = true;
-      URL.revokeObjectURL(url);
+      win.removeEventListener("afterprint", done);
       window.setTimeout(() => frame.remove(), 400);
       resolve();
     };
-
-    frame.addEventListener(
-      "load",
-      () => {
-        const win = frame.contentWindow;
-        const doc = frame.contentDocument;
-        if (!win || !doc) {
-          done();
-          return;
-        }
-        void waitForImages(doc)
-          .then(() => afterLayout(win))
-          .then(() => {
-            win.addEventListener("afterprint", done);
-            win.print();
-            window.setTimeout(done, 120_000);
-          });
-      },
-      { once: true },
-    );
-
-    document.body.appendChild(frame);
-    frame.src = url;
+    win.addEventListener("afterprint", done);
+    win.print();
+    window.setTimeout(done, 120_000);
   });
 }
 
