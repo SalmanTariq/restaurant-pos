@@ -209,6 +209,14 @@ function printCss(extra: string) {
   `;
 }
 
+function receiptPageSize(root: HTMLElement) {
+  const slip = root.querySelector<HTMLElement>(".slip");
+  // CSS pixels use 96 dpi. A little extra length keeps the final line clear of
+  // the cutter without feeding an entire A4-sized page.
+  const heightMm = Math.max(30, Math.ceil((slip?.getBoundingClientRect().height ?? 0) * 25.4 / 96 + 3));
+  return `@page { size: 80mm ${heightMm}mm; margin: 0; }`;
+}
+
 let pendingPrint: Promise<void> = Promise.resolve();
 
 function printSlip(title: string, extraCss: string, inner: string) {
@@ -250,15 +258,23 @@ function showPrintSlip(title: string, extraCss: string, inner: string) {
     };
     window.addEventListener("afterprint", done);
     // Let the WebView lay out the receipt before it takes its print snapshot.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      try {
-        window.print();
-        window.setTimeout(done, 120_000);
-      } catch (error) {
-        done();
-        console.error("Could not open the print dialog", error);
-      }
-    }));
+    requestAnimationFrame(async () => {
+      await Promise.all([
+        document.fonts.ready,
+        ...Array.from(root.querySelectorAll("img"), (img) => img.decode().catch(() => {})),
+      ]);
+      requestAnimationFrame(() => {
+        if (settled) return;
+        style.textContent += receiptPageSize(root);
+        try {
+          window.print();
+          window.setTimeout(done, 120_000);
+        } catch (error) {
+          done();
+          console.error("Could not open the print dialog", error);
+        }
+      });
+    });
   });
 }
 
