@@ -189,6 +189,12 @@ function printCss(extra: string) {
   return `
     ${sharedCss()}
     ${extra}
+    #pos-print-root .receipt-bitmap {
+      display: block;
+      width: 80mm;
+      height: auto;
+      max-width: 80mm;
+    }
     @media screen {
       #pos-print-root {
         position: fixed;
@@ -199,23 +205,23 @@ function printCss(extra: string) {
       }
     }
     @media print {
-      @page { margin: 0; }
-      html, body, #root {
+      html, body, #root, #pos-print-root, #pos-print-root .slip {
         height: auto !important;
         min-height: 0 !important;
+        max-height: none !important;
       }
       html, body {
+        width: 80mm !important;
         margin: 0 !important;
         padding: 0 !important;
         background: #fff !important;
+        overflow: hidden !important;
       }
       body.is-printing > :not(#pos-print-root) {
         display: none !important;
       }
       #pos-print-root {
-        position: absolute !important;
-        top: 0 !important;
-        left: 0 !important;
+        position: static !important;
         z-index: auto !important;
         width: 80mm;
       }
@@ -224,13 +230,72 @@ function printCss(extra: string) {
   `;
 }
 
+function cssPxToMm(px: number) {
+  return px * 25.4 / 96;
+}
+
+function receiptPageBox(heightMm: number) {
+  // Thermal drivers that ignore @page still honour html/body height. A page
+  // shorter than its width is treated as landscape by Chrome, which then feeds
+  // the long side of the roll without a cut.
+  const pageMm = Math.max(81, Math.ceil(heightMm + 8));
+  return `
+    @page { size: 80mm ${pageMm}mm; margin: 0; }
+    @media print {
+      html, body {
+        width: 80mm !important;
+        height: ${pageMm}mm !important;
+        max-height: ${pageMm}mm !important;
+        overflow: hidden !important;
+      }
+    }
+  `;
+}
+
 function receiptPageSize(root: HTMLElement) {
-  const chit = root.querySelector<HTMLElement>(".chit");
-  // CSS pixels use 96 dpi. A little extra length keeps the final line clear of
-  // the cutter without feeding an entire A4-sized page.
-  // A shorter page than its width is treated as landscape by print viewers.
-  const heightMm = Math.max(81, Math.ceil((chit?.getBoundingClientRect().height ?? 0) * 25.4 / 96 + 3));
-  return `@page { size: 80mm ${heightMm}mm; margin: 0; }`;
+  const target =
+    root.querySelector<HTMLElement>(".receipt-bitmap") ??
+    root.querySelector<HTMLElement>(".chit") ??
+    root;
+  return receiptPageBox(cssPxToMm(target.getBoundingClientRect().height));
+}
+
+async function rasterizeChit(chit: HTMLElement, css: string) {
+  const rect = chit.getBoundingClientRect();
+  if (rect.width < 2 || rect.height < 2) return null;
+
+  const scale = 2;
+  const width = Math.ceil(rect.width);
+  const height = Math.ceil(rect.height);
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width * scale}" height="${height * scale}" viewBox="0 0 ${width} ${height}">
+  <foreignObject x="0" y="0" width="${width}" height="${height}">
+    <div xmlns="http://www.w3.org/1999/xhtml" id="pos-print-root" style="width:${width}px;background:#fff;">
+      <style>${css}#pos-print-root{position:static!important;}</style>
+      ${chit.outerHTML}
+    </div>
+  </foreignObject>
+</svg>`;
+
+  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/png");
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 let pendingPrint: Promise<void> = Promise.resolve();
@@ -279,6 +344,15 @@ function showPrintSlip(extraCss: string, inner: string) {
         document.fonts.ready,
         ...Array.from(root.querySelectorAll("img"), (img) => img.decode().catch(() => {})),
       ]);
+      const chit = root.querySelector<HTMLElement>(".chit");
+      if (chit) {
+        const png = await rasterizeChit(chit, style.textContent ?? "");
+        if (png) {
+          root.innerHTML = `<div class="slip"><img class="receipt-bitmap" alt="" src="${png}" /></div>`;
+          const bitmap = root.querySelector("img");
+          if (bitmap) await bitmap.decode().catch(() => {});
+        }
+      }
       requestAnimationFrame(() => {
         if (settled) return;
         style.textContent += receiptPageSize(root);
