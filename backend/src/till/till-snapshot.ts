@@ -53,6 +53,7 @@ export type TillDay = {
   openedAt: string;
   pettyCash: number;
   openedBy: string;
+  closedAt: string | null;
 };
 
 export type TillSettings = {
@@ -198,6 +199,7 @@ export function normalizeTillSnapshot(body: TillWriteBody): TillSnapshot {
           openedAt: String(row?.openedAt || new Date().toISOString()),
           pettyCash: Math.max(0, money(row?.pettyCash)),
           openedBy: String(row?.openedBy || 'Staff'),
+          closedAt: row?.closedAt ? String(row.closedAt) : null,
         }))
       : [],
     settings: {

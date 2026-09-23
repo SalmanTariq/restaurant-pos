@@ -99,11 +99,12 @@ export function AppShell({
   onScreen: (screen: Screen) => void;
   children: ReactNode;
 }) {
-  const { todayOpen, settings, sync } = usePos();
+  const { todayOpen, settings, sync, endDay } = usePos();
   const [moreOpen, setMoreOpen] = useState(false);
   const displayRole = role === "admin" ? "Admin" : "Cashier";
   const moreItems = [
     ...MORE,
+    ...(role === "admin" ? [{ id: "items" as const, label: "Items sold" }] : []),
     ...(role === "admin" ? [{ id: "inventory" as const, label: "Inventory" }] : []),
     ...(role === "admin" ? [{ id: "categories" as const, label: "Categories" }] : []),
     ...(role === "admin" ? [{ id: "users" as const, label: "Users" }] : []),
@@ -111,7 +112,7 @@ export function AppShell({
   ];
   const desktopItems = [...PRIMARY, ...moreItems];
   const moreActive = moreItems.some((item) => item.id === screen);
-  const dayLine = `Day since ${shiftLabel(todayOpen?.openedAt)}${
+  const dayLine = `Day ${todayOpen?.date ?? ""} · since ${shiftLabel(todayOpen?.openedAt)}${
     todayOpen && settings.requirePettyCash
       ? ` · petty ${rupees(todayOpen.pettyCash)}`
       : ""
@@ -127,6 +128,22 @@ export function AppShell({
 
   function go(next: Screen) {
     onScreen(next);
+    setMoreOpen(false);
+  }
+
+  function closeTill() {
+    if (
+      !window.confirm(
+        "End this business day? The till will close. Sales after you open again go on the next day.",
+      )
+    ) {
+      return;
+    }
+    const error = endDay();
+    if (error) {
+      window.alert(error);
+      return;
+    }
     setMoreOpen(false);
   }
 
@@ -158,9 +175,14 @@ export function AppShell({
               {name} — {displayRole}
             </strong>
             <span>{dayLine}</span>
-            <button type="button" className="text-btn sign-out" onClick={signOut}>
-              Sign out
-            </button>
+            <div className="user-chip-actions">
+              <button type="button" className="text-btn sign-out" onClick={closeTill}>
+                End day
+              </button>
+              <button type="button" className="text-btn sign-out" onClick={signOut}>
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -235,6 +257,9 @@ export function AppShell({
             </button>
           ))}
         </div>
+        <button type="button" className="text-btn sign-out more-signout" onClick={closeTill}>
+          End day
+        </button>
         <button type="button" className="text-btn sign-out more-signout" onClick={signOut}>
           Sign out
         </button>

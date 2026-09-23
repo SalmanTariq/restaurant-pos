@@ -6,6 +6,7 @@ import { PosProvider, usePos } from "./pos-store";
 import { LoginScreen } from "./screens/LoginScreen";
 import { OrderScreen } from "./screens/OrderScreen";
 import { ExpensesScreen } from "./screens/ExpensesScreen";
+import { ItemsSoldScreen } from "./screens/ItemsSoldScreen";
 import { InventoryScreen } from "./screens/InventoryScreen";
 import { OrdersScreen } from "./screens/OrdersScreen";
 import { SalesScreen } from "./screens/SalesScreen";
@@ -26,7 +27,8 @@ function SignedIn({
   name: string;
   role?: string | null;
 }) {
-  const { ready, tables, activeOrders, todayOpen, settings, startDay } = usePos();
+  const { ready, tables, activeOrders, days, todayOpen, settings, startDay } =
+    usePos();
   const { screen, ticketId, go } = useShopRoute(role);
   const [orderType, setOrderType] = useState<OrderType>("takeaway");
   const [tableId, setTableId] = useState<string | null>(null);
@@ -39,10 +41,10 @@ function SignedIn({
   }, [tableId, tables]);
 
   useEffect(() => {
-    if (!settings.requirePettyCash && !todayOpen) {
+    if (!settings.requirePettyCash && !todayOpen && days.length === 0) {
       startDay(0, name);
     }
-  }, [name, settings.requirePettyCash, startDay, todayOpen]);
+  }, [days.length, name, settings.requirePettyCash, startDay, todayOpen]);
 
   useEffect(() => {
     if (screen === "inventory" && role !== "admin") {
@@ -62,11 +64,15 @@ function SignedIn({
     );
   }
 
-  if (settings.requirePettyCash && !todayOpen) {
-    return <DayStartScreen openedBy={name} />;
-  }
-
   if (!todayOpen) {
+    if (settings.requirePettyCash || days.length > 0) {
+      return (
+        <DayStartScreen
+          openedBy={name}
+          askPettyCash={settings.requirePettyCash}
+        />
+      );
+    }
     return (
       <div className="login-page">
         <p className="boot">Opening {settings.restaurantName}…</p>
@@ -110,6 +116,7 @@ function SignedIn({
       {screen === "sales" && (
         <SalesScreen onOpenExpenses={() => go("expenses")} />
       )}
+      {screen === "items" && role === "admin" && <ItemsSoldScreen />}
       {screen === "expenses" && <ExpensesScreen />}
       {screen === "balance" && <BalanceScreen />}
       {screen === "inventory" && role === "admin" && <InventoryScreen />}

@@ -122,6 +122,11 @@ export class TillService {
             : String(row.openedAt),
         pettyCash: money(row.pettyCash),
         openedBy: row.openedBy,
+        closedAt: row.closedAt
+          ? row.closedAt instanceof Date
+            ? row.closedAt.toISOString()
+            : String(row.closedAt)
+          : null,
       })),
       settings: {
         restaurantName: restaurant.name,
@@ -260,6 +265,7 @@ export class TillService {
               openedAt: new Date(row.openedAt),
               pettyCash: moneyStr(row.pettyCash),
               openedBy: row.openedBy,
+              closedAt: row.closedAt ? new Date(row.closedAt) : null,
             }),
           ),
         );

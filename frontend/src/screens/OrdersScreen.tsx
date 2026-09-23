@@ -212,7 +212,7 @@ export function OrdersScreen({
                       type="button"
                       className="btn-ink"
                       disabled={selected.lines.length === 0}
-                      onClick={() => printKitchenToken(selected, settings)}
+                      onClick={() => printKitchenToken(selected, settings, menu, categories)}
                     >
                       Print kitchen
                       <span className="urdu">کچن</span>
@@ -241,7 +241,7 @@ export function OrdersScreen({
                       type="button"
                       className="ghost-btn"
                       disabled={selected.lines.length === 0}
-                      onClick={() => printKitchenToken(selected, settings)}
+                      onClick={() => printKitchenToken(selected, settings, menu, categories)}
                     >
                       Print kitchen
                       <span className="urdu">کچن</span>

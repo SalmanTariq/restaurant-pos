@@ -33,7 +33,15 @@ test.describe("paid orders", () => {
     await page.getByRole("button", { name: "Print bill" }).first().click();
     await page.getByRole("cell", { name: "#7" }).click();
     await expect(page.getByRole("heading", { name: "Token 7" })).toBeVisible();
-    await expect(page.getByText("Tandoori Roti", { exact: true })).toBeVisible();
+    await expect(page.locator(".sales-page").getByText("Tandoori Roti", { exact: true })).toBeVisible();
+  });
+
+  test("lists how many of each item sold", async ({ page }) => {
+    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Items sold" }).click();
+    await expect(page).toHaveURL(/\/items$/);
+    await expect(page.getByRole("heading", { name: "Items sold" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Tandoori Roti" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "4" })).toBeVisible();
   });
 });
 

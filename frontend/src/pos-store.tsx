@@ -16,6 +16,7 @@ import {
   MENU_ITEMS,
   NEXT_TOKEN,
   nowClock,
+  openBusinessDay,
   todayISO,
   DEFAULT_FLOOR,
 } from "./demo-data";
@@ -100,6 +101,7 @@ type PosContextValue = {
   days: DayOpen[];
   todayOpen: DayOpen | null;
   startDay: (pettyCash: number, openedBy: string) => void;
+  endDay: () => string | null;
   settings: PosSettings;
   updateSettings: (patch: Partial<PosSettings>) => void;
 };
@@ -557,7 +559,7 @@ export function PosProvider({
       tableId: input.tableId,
       lines: input.lines,
       status: input.status,
-      date: todayISO(),
+      date: openBusinessDay(days)?.date ?? todayISO(),
       time: nowClock(),
       payment: input.payment,
     };
@@ -760,7 +762,7 @@ export function PosProvider({
     return null;
   }
 
-  const todayOpen = days.find((day) => day.date === todayISO()) ?? null;
+  const todayOpen = openBusinessDay(days);
 
   const startDay = useCallback((pettyCash: number, openedBy: string) => {
     if (!Number.isFinite(pettyCash) || pettyCash < 0) return;
@@ -768,20 +770,39 @@ export function PosProvider({
     const now = new Date();
     let opened = false;
     setDays((current) => {
-      if (current.some((day) => day.date === date)) return current;
+      if (openBusinessDay(current)) return current;
       opened = true;
-      return [
-        {
-          date,
-          openedAt: now.toISOString(),
-          pettyCash,
-          openedBy,
-        },
-        ...current,
-      ];
+      const row: DayOpen = {
+        date,
+        openedAt: now.toISOString(),
+        pettyCash,
+        openedBy,
+        closedAt: null,
+      };
+      if (current.some((day) => day.date === date)) {
+        return current.map((day) => (day.date === date ? row : day));
+      }
+      return [row, ...current];
     });
     if (opened) sessionStorage.setItem("shift_started", now.toISOString());
   }, []);
+
+  const endDay = useCallback(() => {
+    if (orders.some((order) => order.status !== "paid")) {
+      return "Pay or cancel open tickets before ending the day.";
+    }
+    const now = new Date().toISOString();
+    let closed = false;
+    setDays((current) => {
+      if (!openBusinessDay(current)) return current;
+      closed = true;
+      return current.map((day) =>
+        day.closedAt ? day : { ...day, closedAt: now },
+      );
+    });
+    if (closed) sessionStorage.removeItem("shift_started");
+    return null;
+  }, [orders]);
 
   function updateSettings(patch: Partial<PosSettings>) {
     setSettings((current) => {
@@ -835,6 +856,7 @@ export function PosProvider({
     days,
     todayOpen,
     startDay,
+    endDay,
     settings,
     updateSettings,
   };

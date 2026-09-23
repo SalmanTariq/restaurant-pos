@@ -213,6 +213,11 @@ select:focus-visible {
   color: #c9c0b6;
 }
 
+.user-chip-actions {
+  display: flex;
+  gap: 14px;
+}
+
 .text-btn {
   border: 0;
   background: none;

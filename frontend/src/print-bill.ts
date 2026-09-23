@@ -47,6 +47,7 @@ function sharedCss() {
 function kitchenChitHtml(
   order: PosOrder,
   brand: { restaurantName?: string } = {},
+  station?: string,
 ) {
   const name = brandName(brand);
   const where = orderWhere(order);
@@ -65,6 +66,7 @@ function kitchenChitHtml(
     <article class="chit kitchen-chit">
       <div class="kicker">${escapeHtml(name)}</div>
       <h1 class="kitchen">Kitchen · کچن</h1>
+      ${station ? `<div class="station">${escapeHtml(station)}</div>` : ""}
       <div class="token">${order.token}</div>
       <div class="meta">
         <div>${escapeHtml(where)}</div>
@@ -73,7 +75,7 @@ function kitchenChitHtml(
       <table>
         <tbody>${rows || `<tr><td colspan="2">No items</td></tr>`}</tbody>
       </table>
-      <p class="foot">${count} ${count === 1 ? "item" : "items"} · Token ${order.token}</p>
+      <p class="foot">${count} ${count === 1 ? "item" : "items"} · Token ${order.token}${station ? ` · ${escapeHtml(station)}` : ""}</p>
     </article>`;
 }
 
@@ -136,6 +138,14 @@ function kitchenCss() {
       font-weight: 800;
       margin: 4px 0 0;
       letter-spacing: 0.04em;
+    }
+    #pos-print-root .station {
+      text-align: center;
+      font-size: 18px;
+      font-weight: 800;
+      margin: 4px 0 0;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
     }
     #pos-print-root .token {
       text-align: center;
@@ -367,13 +377,53 @@ function showPrintSlip(extraCss: string, inner: string) {
   });
 }
 
+export type KitchenMenuRef = { id: string; category: string };
+
+export function kitchenSlipsForOrder(
+  order: PosOrder,
+  menu: KitchenMenuRef[] = [],
+  categoryOrder: string[] = [],
+) {
+  const groups = new Map<string, CartLine[]>();
+  for (const line of order.lines) {
+    const category =
+      menu.find((item) => item.id === line.id)?.category ?? "Other";
+    const list = groups.get(category) ?? [];
+    list.push(line);
+    groups.set(category, list);
+  }
+  const names = [...groups.keys()].sort((a, b) => {
+    const ia = categoryOrder.indexOf(a);
+    const ib = categoryOrder.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+  if (names.length === 0) {
+    return [{ category: "Kitchen", order }];
+  }
+  return names.map((category) => ({
+    category,
+    order: { ...order, lines: groups.get(category) ?? [] },
+  }));
+}
+
 export function printKitchenToken(
   order: PosOrder,
   brand: { restaurantName?: string } = {},
+  menu: KitchenMenuRef[] = [],
+  categoryOrder: string[] = [],
 ) {
-  return printSlip(
-    kitchenCss(),
-    kitchenChitHtml(order, brand),
+  return kitchenSlipsForOrder(order, menu, categoryOrder).reduce(
+    (chain, slip) =>
+      chain.then(() =>
+        printSlip(
+          kitchenCss(),
+          kitchenChitHtml(slip.order, brand, slip.category),
+        ),
+      ),
+    Promise.resolve(),
   );
 }
 

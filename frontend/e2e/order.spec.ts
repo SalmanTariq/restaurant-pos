@@ -63,6 +63,9 @@ test.describe("cashier till", () => {
     await signIn(page, "cashier@test.com");
     await waitForTill(page);
     await expect(
+      page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Items sold" }),
+    ).toHaveCount(0);
+    await expect(
       page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Inventory" }),
     ).toHaveCount(0);
     await expect(
@@ -87,6 +90,40 @@ test.describe("day start", () => {
     await signIn(page, "owner@test.com");
     await expect(page.getByRole("heading", { name: "Petty cash" })).toBeVisible();
     await page.getByLabel("Opening cash (Rs)").fill("1500");
+    await page.getByRole("button", { name: /Open the day/ }).click();
+    await waitForTill(page);
+  });
+
+  test("keeps an overnight till on the open business day", async ({ page }) => {
+    const opened = new Date();
+    opened.setDate(opened.getDate() - 1);
+    const month = String(opened.getMonth() + 1).padStart(2, "0");
+    const day = String(opened.getDate()).padStart(2, "0");
+    const businessDate = `${opened.getFullYear()}-${month}-${day}`;
+    await mockApi(page, {
+      till: sampleTill({
+        days: [
+          {
+            date: businessDate,
+            openedAt: opened.toISOString(),
+            pettyCash: 2000,
+            openedBy: "Ayesha",
+          },
+        ],
+      }),
+    });
+    await signIn(page, "owner@test.com");
+    await waitForTill(page);
+    await expect(page.locator("header")).toContainText(businessDate);
+  });
+
+  test("End day closes the till until it is opened again", async ({ page }) => {
+    await mockApi(page);
+    await signIn(page, "owner@test.com");
+    await waitForTill(page);
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.locator("header").getByRole("button", { name: "End day" }).click();
+    await expect(page.getByRole("heading", { name: "Open the till" })).toBeVisible();
     await page.getByRole("button", { name: /Open the day/ }).click();
     await waitForTill(page);
   });

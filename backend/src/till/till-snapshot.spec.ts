@@ -137,6 +137,7 @@ describe('normalizeTillSnapshot', () => {
     });
     expect(snapshot.expenses[0].title).toBe('Gas');
     expect(snapshot.staff[0].name).toBe('Ali');
+    expect(snapshot.days[0].closedAt).toBeNull();
     expect(snapshot.days[0].pettyCash).toBe(500);
   });
 

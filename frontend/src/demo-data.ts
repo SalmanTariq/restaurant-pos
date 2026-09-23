@@ -227,6 +227,12 @@ export function todayISO() {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
+export function openBusinessDay<T extends { closedAt?: string | null }>(
+  days: T[],
+) {
+  return days.find((day) => !day.closedAt) ?? null;
+}
+
 export function inDateRange(date: string, from: string, to: string) {
   return date >= from && date <= to;
 }

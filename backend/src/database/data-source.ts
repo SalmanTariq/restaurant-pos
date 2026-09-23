@@ -2,11 +2,13 @@ import { DataSource } from 'typeorm';
 import { POS_ENTITIES } from './entities';
 import { EnsurePosSchema1730000000000 } from './migrations/1730000000000-ensure-pos-schema';
 import { AddMissingTillColumns1730000000001 } from './migrations/1730000000001-add-missing-till-columns';
+import { AddBusinessDayClosedAt1730000000002 } from './migrations/1730000000002-add-business-day-closed-at';
 import { mysqlEnv } from './mysql-env';
 
 export const POS_MIGRATIONS = [
   EnsurePosSchema1730000000000,
   AddMissingTillColumns1730000000001,
+  AddBusinessDayClosedAt1730000000002,
 ];
 
 export function posTypeOrmOptions() {

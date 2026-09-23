@@ -5,7 +5,13 @@ import { usePos } from "../pos-store";
 import { BrandLockup } from "../layout/BrandLockup";
 import { SyncStatus } from "./SyncStatus";
 
-export function DayStartScreen({ openedBy }: { openedBy: string }) {
+export function DayStartScreen({
+  openedBy,
+  askPettyCash = true,
+}: {
+  openedBy: string;
+  askPettyCash?: boolean;
+}) {
   const { days, startDay } = usePos();
   const last = days[0];
   const [amount, setAmount] = useState(
@@ -14,7 +20,7 @@ export function DayStartScreen({ openedBy }: { openedBy: string }) {
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    const value = Number(amount);
+    const value = askPettyCash ? Number(amount) : 0;
     if (!Number.isFinite(value) || value < 0) return;
     startDay(value, openedBy);
   }
@@ -29,28 +35,35 @@ export function DayStartScreen({ openedBy }: { openedBy: string }) {
       <main className="login-main">
         <form className="login-card" onSubmit={onSubmit}>
           <p className="login-kicker">Day start · {todayISO()}</p>
-          <h1>Petty cash</h1>
+          <h1>{askPettyCash ? "Petty cash" : "Open the till"}</h1>
           <p className="login-lede urdu" lang="ur">
-            خرد نقد
+            {askPettyCash ? "خرد نقد" : "دن شروع کریں"}
           </p>
           <p className="subhead">
-            Count the notes and coins in the drawer, then open the till.
+            {askPettyCash
+              ? "Count the notes and coins in the drawer, then open the till."
+              : "Yesterday’s till is closed. Open a new business day for tonight’s sales."}
           </p>
 
-          <label htmlFor="petty-cash">Opening cash (Rs)</label>
-          <input
-            id="petty-cash"
-            type="number"
-            min="0"
-            step="1"
-            value={amount}
-            onChange={(event) => setAmount(event.currentTarget.value)}
-            required
-            autoFocus
-          />
+          {askPettyCash ? (
+            <>
+              <label htmlFor="petty-cash">Opening cash (Rs)</label>
+              <input
+                id="petty-cash"
+                type="number"
+                min="0"
+                step="1"
+                value={amount}
+                onChange={(event) => setAmount(event.currentTarget.value)}
+                required
+                autoFocus
+              />
+            </>
+          ) : null}
           {last ? (
             <p className="subhead">
               Last open: {last.date} · {rupees(last.pettyCash)}
+              {last.closedAt ? " · closed" : ""}
             </p>
           ) : null}
 

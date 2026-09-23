@@ -27,6 +27,9 @@ export class BusinessDay {
   @Column()
   openedBy: string;
 
+  @Column({ type: 'datetime', nullable: true })
+  closedAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

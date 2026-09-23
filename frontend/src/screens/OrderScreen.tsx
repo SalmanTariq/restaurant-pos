@@ -93,7 +93,7 @@ export function OrderScreen({
       lines: cart,
       status: "open",
     });
-    void printKitchenToken(order, settings);
+    void printKitchenToken(order, settings, menu, categories);
     onCart([]);
     setTicketOpen(false);
   }
@@ -271,7 +271,7 @@ export function OrderScreen({
               status: "paid",
               payment,
             });
-            void printKitchenToken(order, settings).then(() =>
+            void printKitchenToken(order, settings, menu, categories).then(() =>
               printGuestBill(order, settings),
             );
             onCart([]);

@@ -6,6 +6,7 @@ const SCREENS: Screen[] = [
   "tables",
   "orders",
   "sales",
+  "items",
   "expenses",
   "balance",
   "inventory",
@@ -15,6 +16,7 @@ const SCREENS: Screen[] = [
 ];
 
 const ADMIN_SCREENS: Screen[] = [
+  "items",
   "inventory",
   "categories",
   "users",

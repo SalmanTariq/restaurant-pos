@@ -3,6 +3,7 @@ export type Screen =
   | "tables"
   | "orders"
   | "sales"
+  | "items"
   | "expenses"
   | "balance"
   | "inventory"
@@ -92,6 +93,7 @@ export type DayOpen = {
   openedAt: string;
   pettyCash: number;
   openedBy: string;
+  closedAt?: string | null;
 };
 
 export type PosSettings = {

@@ -31,6 +31,8 @@ test.describe("sign in", () => {
     await expect(page).toHaveURL(/\/orders$/);
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Sales" }).click();
     await expect(page).toHaveURL(/\/sales$/);
+    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Items sold" }).click();
+    await expect(page).toHaveURL(/\/items$/);
   });
 
   test("signs out back to the login card", async ({ page }) => {
