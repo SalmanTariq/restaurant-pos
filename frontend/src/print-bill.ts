@@ -235,10 +235,9 @@ function cssPxToMm(px: number) {
 }
 
 function receiptPageBox(heightMm: number) {
-  // Thermal drivers that ignore @page still honour html/body height. A page
-  // shorter than its width is treated as landscape by Chrome, which then feeds
-  // the long side of the roll without a cut.
-  const pageMm = Math.max(81, Math.ceil(heightMm + 8));
+  // Match the roll length to the rendered receipt. Keep only 2 mm after the
+  // last line so the cutter clears it without feeding a fixed blank section.
+  const pageMm = Math.max(20, Math.ceil(heightMm + 2));
   return `
     @page { size: 80mm ${pageMm}mm; margin: 0; }
     @media print {
