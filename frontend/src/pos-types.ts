@@ -101,6 +101,7 @@ export type PosSettings = {
   logoDataUrl: string | null;
   requirePettyCash: boolean;
   useInventory: boolean;
+  useTables: boolean;
 };
 
 export type PosOrder = {

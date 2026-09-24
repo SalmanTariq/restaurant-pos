@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS: PosSettings = {
   logoDataUrl: null,
   requirePettyCash: true,
   useInventory: true,
+  useTables: true,
 };
 
 const LOGO_PATTERN = /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i;
@@ -50,6 +51,7 @@ function asSettings(value: unknown): PosSettings {
     logoDataUrl: isLogoDataUrl(logo) ? logo : null,
     requirePettyCash: entry.requirePettyCash !== false,
     useInventory: entry.useInventory !== false,
+    useTables: entry.useTables !== false,
   };
 }
 

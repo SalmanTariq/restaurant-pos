@@ -46,4 +46,10 @@ export class PlatformRestaurantsController {
   ) {
     return this.restaurants.resetOwnerPassword(id, body.password ?? '');
   }
+
+  @Post(':id/clear-sales')
+  @HttpCode(200)
+  clearSales(@Param('id') id: string) {
+    return this.restaurants.clearSales(id);
+  }
 }

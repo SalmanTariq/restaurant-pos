@@ -16,16 +16,20 @@ test.describe("order till", () => {
     await expect(page.getByRole("button", { name: /Doodh Patti/ })).toBeVisible();
   });
 
-  test("adds a dish to the ticket and sends it to orders", async ({ page }) => {
+  test("adds a dish to the ticket and pays it", async ({ page }) => {
     await page.getByRole("button", { name: /Chicken Karahi/ }).click();
     await expect(page.locator(".ticket-lines")).toContainText("Chicken Karahi");
     await page.getByLabel("Quantity for Chicken Karahi (Half)").fill("5");
     await expect(page.getByLabel("Quantity for Chicken Karahi (Half)")).toHaveValue("5");
-    await page.getByRole("button", { name: /Send to orders/ }).click();
+    await expect(page.getByRole("button", { name: /Send to orders/ })).toBeDisabled();
+    await page.getByRole("button", { name: /^Pay/ }).click();
+    await expect(page.getByLabel("Print bill")).toBeChecked();
+    await page.getByRole("button", { name: /^Cash/ }).click();
+    await expect(page.getByRole("heading", { name: "Paid" })).toBeVisible();
+    await page.getByRole("button", { name: "Done" }).click();
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Orders" }).click();
+    await page.getByRole("tab", { name: /Paid/ }).click();
     await expect(page.getByRole("heading", { name: "Token 8" })).toBeVisible();
-    await expect(page.getByLabel("Quantity for Chicken Karahi (Half)")).toHaveValue("5");
-    await expect(page.getByRole("button", { name: /Print kitchen/ })).toBeVisible();
   });
 
   test("opens dine-in tables from the order type toggle", async ({ page }) => {
@@ -33,10 +37,21 @@ test.describe("order till", () => {
     await expect(page.getByRole("heading", { name: "Floor" })).toBeVisible();
   });
 
+  test("hides tables when dine-in is turned off in settings", async ({ page }) => {
+    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Settings" }).click();
+    await page.getByLabel("Show tables and dine-in").uncheck();
+    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Order", exact: true }).click();
+    await expect(page.getByRole("button", { name: /Dine-in/ })).toHaveCount(0);
+    await expect(
+      page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Tables" }),
+    ).toHaveCount(0);
+  });
+
   test("takes cash and keeps the paid ticket on Orders", async ({ page }) => {
     await page.getByRole("button", { name: /Tandoori Roti/ }).click();
     await page.getByRole("button", { name: /^Pay/ }).click();
     await expect(page.getByRole("heading", { name: "Take payment" })).toBeVisible();
+    await expect(page.getByLabel("Print bill")).toBeChecked();
     await page.getByRole("button", { name: /^Cash/ }).click();
     await expect(page.getByRole("heading", { name: "Paid" })).toBeVisible();
     await page.getByRole("button", { name: "Done" }).click();
@@ -52,7 +67,8 @@ test.describe("till save errors", () => {
     await signIn(page, "owner@test.com");
     await waitForTill(page);
     await page.getByRole("button", { name: /Tandoori Roti/ }).click();
-    await page.getByRole("button", { name: /Send to orders/ }).click();
+    await page.getByRole("button", { name: /^Pay/ }).click();
+    await page.getByRole("button", { name: /^Cash/ }).click();
     await expect(page.getByRole("alert")).toContainText("Database write failed");
   });
 });
@@ -84,6 +100,7 @@ test.describe("day start", () => {
           logoDataUrl: null,
           requirePettyCash: true,
           useInventory: true,
+          useTables: true,
         },
       }),
     });
@@ -122,7 +139,7 @@ test.describe("day start", () => {
     await signIn(page, "owner@test.com");
     await waitForTill(page);
     page.once("dialog", (dialog) => dialog.accept());
-    await page.locator("header").getByRole("button", { name: "End day" }).click();
+    await page.locator("header").getByRole("button", { name: /End day/ }).click();
     await expect(page.getByRole("heading", { name: "Open the till" })).toBeVisible();
     await page.getByRole("button", { name: /Open the day/ }).click();
     await waitForTill(page);

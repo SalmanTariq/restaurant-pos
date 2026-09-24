@@ -39,6 +39,9 @@ function sharedCss() {
       box-sizing: border-box;
       overflow-wrap: anywhere;
     }
+    #pos-print-root .kitchen-chit {
+      padding: 1.5mm 1.5mm 2.5mm;
+    }
     #pos-print-root table { table-layout: fixed; }
     #pos-print-root tr { break-inside: avoid; page-break-inside: avoid; }
   `;
@@ -157,7 +160,7 @@ function kitchenCss() {
     #pos-print-root .kitchen-chit .meta { text-align: center; font-size: 14px; margin-bottom: 10px; }
     #pos-print-root .kitchen-chit table { width: 100%; border-collapse: collapse; font-size: 16px; }
     #pos-print-root .kitchen-chit td { padding: 5px 0; border-bottom: 1px dashed #1a1612; vertical-align: top; }
-    #pos-print-root .kitchen-chit .qty { width: 14mm; font-weight: 900; font-size: 20px; }
+    #pos-print-root .kitchen-chit .qty { width: 12mm; font-weight: 900; font-size: 20px; }
     #pos-print-root .foot { text-align: center; margin: 8px 0 0; font-size: 12px; font-weight: 700; }
   `;
 }

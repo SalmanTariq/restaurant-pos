@@ -32,6 +32,7 @@ export function PlatformScreen({ name }: { name: string }) {
   const [resetPassword, setResetPassword] = useState("");
   const [resetPending, setResetPending] = useState(false);
   const [resetSaved, setResetSaved] = useState("");
+  const [clearPendingId, setClearPendingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (window.location.pathname !== "/platform") {
@@ -94,6 +95,34 @@ export function PlatformScreen({ name }: { name: string }) {
       setError(
         err instanceof Error ? err.message : "Could not update restaurant",
       );
+    }
+  }
+
+  async function clearSales(shop: RestaurantRow) {
+    const ok = window.confirm(
+      `Clear all orders and sales for “${shop.name}”? Menu and stock stay. Staff must hard-refresh the till afterward.`,
+    );
+    if (!ok) return;
+    setError("");
+    setResetSaved("");
+    setClearPendingId(shop.id);
+    try {
+      const result = await api<{
+        clearedOrders: number;
+        clearedDays: number;
+      }>(`/platform/restaurants/${shop.id}/clear-sales`, {
+        method: "POST",
+        body: "{}",
+      });
+      setResetSaved(
+        `Cleared ${result.clearedOrders} order(s) and ${result.clearedDays} day(s) for ${shop.name}. Hard-refresh open tills.`,
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not clear sales",
+      );
+    } finally {
+      setClearPendingId(null);
     }
   }
 
@@ -299,6 +328,16 @@ export function PlatformScreen({ name }: { name: string }) {
                         onClick={() => startReset(shop)}
                       >
                         Reset password
+                      </button>
+                      <button
+                        type="button"
+                        className="text-btn shop-clear-sales"
+                        disabled={clearPendingId === shop.id}
+                        onClick={() => void clearSales(shop)}
+                      >
+                        {clearPendingId === shop.id
+                          ? "Clearing…"
+                          : "Clear sales"}
                       </button>
                     </span>
                   </li>

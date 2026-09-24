@@ -61,6 +61,7 @@ export type TillSettings = {
   logoDataUrl: string | null;
   requirePettyCash: boolean;
   useInventory: boolean;
+  useTables: boolean;
 };
 
 export type TillLayout = {
@@ -207,6 +208,7 @@ export function normalizeTillSnapshot(body: TillWriteBody): TillSnapshot {
       logoDataUrl: isLogoDataUrl(logo) ? logo : null,
       requirePettyCash: body.settings?.requirePettyCash !== false,
       useInventory: body.settings?.useInventory !== false,
+      useTables: body.settings?.useTables !== false,
     },
     layout: readLayout(body.layout),
     categories: mergeMenuCategories(

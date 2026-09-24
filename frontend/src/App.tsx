@@ -52,6 +52,19 @@ function SignedIn({
     }
   }, [go, role, screen]);
 
+  useEffect(() => {
+    if (!settings.useTables && orderType === "dine-in") {
+      setOrderType("takeaway");
+      setTableId(null);
+    }
+  }, [orderType, settings.useTables]);
+
+  useEffect(() => {
+    if (!settings.useTables && screen === "tables") {
+      go("order", null, true);
+    }
+  }, [go, screen, settings.useTables]);
+
   function openTables() {
     go("tables");
   }

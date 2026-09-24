@@ -50,4 +50,23 @@ test.describe("platform control panel", () => {
     await page.getByRole("button", { name: /Create/ }).click();
     await expect(page.getByText("Third Kitchen")).toBeVisible();
   });
+
+  test("clears sales for a restaurant", async ({ page }) => {
+    await mockApi(page, {
+      shops: [
+        {
+          id: "shop-1",
+          name: "Old Kitchen",
+          status: "active",
+          ownerEmail: "old@test.com",
+          lastLoginAt: null,
+          createdAt: "2026-09-01T00:00:00.000Z",
+        },
+      ],
+    });
+    await signIn(page, "platform@test.com");
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("button", { name: "Clear sales" }).click();
+    await expect(page.getByText(/Cleared 3 order/)).toBeVisible();
+  });
 });

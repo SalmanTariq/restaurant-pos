@@ -112,6 +112,7 @@ export function sampleTill(overrides: Record<string, unknown> = {}) {
       logoDataUrl: null,
       requirePettyCash: false,
       useInventory: true,
+      useTables: true,
     },
     layout: [
       { id: "T1", x: 8, y: 24, w: 124, h: 124, shape: "round", kind: "table" },
@@ -301,6 +302,21 @@ export async function mockApi(
         status: 201,
         contentType: "application/json",
         body: JSON.stringify(shop),
+      });
+      return;
+    }
+
+    const clearMatch = path.match(/^\/platform\/restaurants\/([^/]+)\/clear-sales$/);
+    if (clearMatch && method === "POST") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          clearedOrders: 3,
+          clearedDays: 1,
+          nextToken: 1,
+        }),
       });
       return;
     }

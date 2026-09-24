@@ -306,6 +306,98 @@ describe('Password authentication (e2e)', () => {
     owner.password = 'newpass1234';
   });
 
+  it('lets a platform user clear sales without touching the menu', async () => {
+    const platformSignIn = await request(app.getHttpServer())
+      .post('/api/auth/sign-in/email')
+      .send({ email: platform.email, password: platform.password })
+      .expect(200);
+
+    const shops = await request(app.getHttpServer())
+      .get('/platform/restaurants')
+      .set('Authorization', `Bearer ${platformSignIn.headers['set-auth-token']}`)
+      .expect(200);
+
+    const shopId = shops.body.find(
+      (shop: { ownerEmail: string }) => shop.ownerEmail === owner.email,
+    ).id as string;
+
+    const ownerSignIn = await request(app.getHttpServer())
+      .post('/api/auth/sign-in/email')
+      .send({ email: owner.email, password: owner.password })
+      .expect(200);
+
+    const empty = await request(app.getHttpServer())
+      .get('/till')
+      .set('Authorization', `Bearer ${ownerSignIn.headers['set-auth-token']}`)
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .put('/till')
+      .set('Authorization', `Bearer ${ownerSignIn.headers['set-auth-token']}`)
+      .send({
+        ...empty.body,
+        nextToken: 9,
+        orders: [
+          {
+            id: 'ord-clear-me',
+            token: 8,
+            type: 'takeaway',
+            tableId: null,
+            status: 'paid',
+            payment: 'cash',
+            date: '2026-09-11',
+            time: '1:00 PM',
+            lines: [{ id: 'roti', name: 'Roti', price: 25, qty: 2 }],
+          },
+        ],
+        days: [
+          {
+            date: '2026-09-11',
+            openedAt: '2026-09-11T08:00:00.000Z',
+            pettyCash: 2000,
+            openedBy: 'Owner',
+          },
+        ],
+        menu: [
+          {
+            id: 'roti',
+            name: 'Roti',
+            category: 'Breads',
+            price: 25,
+            stock: 40,
+            active: true,
+          },
+        ],
+      })
+      .expect(200);
+
+    const cleared = await request(app.getHttpServer())
+      .post(`/platform/restaurants/${shopId}/clear-sales`)
+      .set('Authorization', `Bearer ${platformSignIn.headers['set-auth-token']}`)
+      .expect(200);
+
+    expect(cleared.body).toMatchObject({
+      ok: true,
+      clearedOrders: 1,
+      clearedDays: 1,
+      nextToken: 1,
+    });
+
+    const after = await request(app.getHttpServer())
+      .get('/till')
+      .set('Authorization', `Bearer ${ownerSignIn.headers['set-auth-token']}`)
+      .expect(200);
+
+    expect(after.body.orders).toEqual([]);
+    expect(after.body.days).toEqual([]);
+    expect(after.body.nextToken).toBe(1);
+    expect(after.body.menu).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'roti', stock: 40 }),
+      ]),
+    );
+  });
+
   it('does not let a shop admin reset passwords from the control panel', async () => {
     const signIn = await request(app.getHttpServer())
       .post('/api/auth/sign-in/email')

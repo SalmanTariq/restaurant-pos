@@ -83,6 +83,7 @@ describe('normalizeTillSnapshot', () => {
     expect(snapshot.nextToken).toBe(1);
     expect(snapshot.settings.restaurantName).toBe('Restaurant');
     expect(snapshot.settings.requirePettyCash).toBe(true);
+    expect(snapshot.settings.useTables).toBe(true);
     expect(snapshot.categories).toEqual(
       expect.arrayContaining(['Other', ...DEFAULT_MENU_CATEGORIES.filter((n) => n !== 'Other')]),
     );

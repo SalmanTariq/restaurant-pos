@@ -34,6 +34,9 @@ export class Restaurant {
   @Column({ default: true })
   useInventory: boolean;
 
+  @Column({ default: true })
+  useTables: boolean;
+
   @Column({ type: 'json', nullable: true })
   floorPlan: unknown | null;
 

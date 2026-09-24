@@ -6,7 +6,7 @@ import { usePos } from "../pos-store";
 import { SyncStatus } from "../screens/SyncStatus";
 import type { Screen } from "../pos-types";
 
-const PRIMARY: { id: Screen; label: string }[] = [
+const PRIMARY_ALL: { id: Screen; label: string }[] = [
   { id: "order", label: "Order" },
   { id: "tables", label: "Tables" },
   { id: "orders", label: "Orders" },
@@ -102,6 +102,9 @@ export function AppShell({
   const { todayOpen, settings, sync, endDay } = usePos();
   const [moreOpen, setMoreOpen] = useState(false);
   const displayRole = role === "admin" ? "Admin" : "Cashier";
+  const primary = settings.useTables
+    ? PRIMARY_ALL
+    : PRIMARY_ALL.filter((item) => item.id !== "tables");
   const moreItems = [
     ...MORE,
     ...(role === "admin" ? [{ id: "items" as const, label: "Items sold" }] : []),
@@ -110,7 +113,7 @@ export function AppShell({
     ...(role === "admin" ? [{ id: "users" as const, label: "Users" }] : []),
     ...(role === "admin" ? [{ id: "settings" as const, label: "Settings" }] : []),
   ];
-  const desktopItems = [...PRIMARY, ...moreItems];
+  const desktopItems = [...primary, ...moreItems];
   const moreActive = moreItems.some((item) => item.id === screen);
   const dayLine = `Day ${todayOpen?.date ?? ""} · since ${shiftLabel(todayOpen?.openedAt)}${
     todayOpen && settings.requirePettyCash
@@ -176,8 +179,9 @@ export function AppShell({
             </strong>
             <span>{dayLine}</span>
             <div className="user-chip-actions">
-              <button type="button" className="text-btn sign-out" onClick={closeTill}>
+              <button type="button" className="end-day-btn" onClick={closeTill}>
                 End day
+                <span className="urdu">دن بند کریں</span>
               </button>
               <button type="button" className="text-btn sign-out" onClick={signOut}>
                 Sign out
@@ -195,7 +199,7 @@ export function AppShell({
       <div className="shell-main">{children}</div>
 
       <nav className="dock" aria-label="Primary">
-        {PRIMARY.map((item) => (
+        {primary.map((item) => (
           <button
             key={item.id}
             type="button"
@@ -257,8 +261,9 @@ export function AppShell({
             </button>
           ))}
         </div>
-        <button type="button" className="text-btn sign-out more-signout" onClick={closeTill}>
+        <button type="button" className="end-day-btn more-end-day" onClick={closeTill}>
           End day
+          <span className="urdu">دن بند کریں</span>
         </button>
         <button type="button" className="text-btn sign-out more-signout" onClick={signOut}>
           Sign out

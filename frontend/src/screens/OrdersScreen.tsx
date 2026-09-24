@@ -340,8 +340,8 @@ export function OrdersScreen({
           token={paying.token}
           total={paying.total}
           onClose={() => setPaying(null)}
-          onPaid={(payment) => {
-            if (selected) {
+          onPaid={(payment, { printBill }) => {
+            if (selected && printBill) {
               printGuestBill({ ...selected, status: "paid", payment }, settings);
             }
             payOrder(paying.id, payment);

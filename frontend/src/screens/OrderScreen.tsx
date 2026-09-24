@@ -85,19 +85,6 @@ export function OrderScreen({
     return true;
   }
 
-  function sendTicket() {
-    if (cart.length === 0 || !requireTable()) return;
-    const order = placeOrder({
-      type: orderType,
-      tableId,
-      lines: cart,
-      status: "open",
-    });
-    void printKitchenToken(order, settings, menu, categories);
-    onCart([]);
-    setTicketOpen(false);
-  }
-
   return (
     <div className={ticketOpen ? "order-layout is-ticket-open" : "order-layout"}>
       <aside className="cats" aria-label="Menu categories">
@@ -124,17 +111,19 @@ export function OrderScreen({
             Takeaway
             <span className="urdu">پارسل</span>
           </button>
-          <button
-            type="button"
-            className={orderType === "dine-in" ? "type-btn is-dine" : "type-btn"}
-            onClick={() => {
-              onOrderType("dine-in");
-              if (!tableId) onOpenTables();
-            }}
-          >
-            Dine-in
-            <span className="urdu">میز</span>
-          </button>
+          {settings.useTables ? (
+            <button
+              type="button"
+              className={orderType === "dine-in" ? "type-btn is-dine" : "type-btn"}
+              onClick={() => {
+                onOrderType("dine-in");
+                if (!tableId) onOpenTables();
+              }}
+            >
+              Dine-in
+              <span className="urdu">میز</span>
+            </button>
+          ) : null}
         </div>
 
         <MenuSectionList
@@ -230,7 +219,12 @@ export function OrderScreen({
             </span>
             <strong>{rupees(total)}</strong>
           </div>
-          <button type="button" className="btn-ink" disabled={cart.length === 0} onClick={sendTicket}>
+          <button
+            type="button"
+            className="btn-ink"
+            disabled
+            title="Send to orders is turned off. Use Pay instead."
+          >
             Send to orders
             <span className="urdu">آرڈر بھیجیں</span>
           </button>
@@ -263,7 +257,7 @@ export function OrderScreen({
           token={nextToken}
           total={total}
           onClose={() => setPaying(false)}
-          onPaid={(payment) => {
+          onPaid={(payment, { printBill }) => {
             const order = placeOrder({
               type: orderType,
               tableId,
@@ -271,9 +265,9 @@ export function OrderScreen({
               status: "paid",
               payment,
             });
-            void printKitchenToken(order, settings, menu, categories).then(() =>
-              printGuestBill(order, settings),
-            );
+            void printKitchenToken(order, settings, menu, categories).then(() => {
+              if (printBill) return printGuestBill(order, settings);
+            });
             onCart([]);
             setTicketOpen(false);
           }}

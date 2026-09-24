@@ -133,6 +133,7 @@ export class TillService {
         logoDataUrl: restaurant.logoDataUrl,
         requirePettyCash: restaurant.requirePettyCash !== false,
         useInventory: restaurant.useInventory !== false,
+        useTables: restaurant.useTables !== false,
       },
       layout: readLayout(restaurant.floorPlan),
       categories: mergeMenuCategories(
@@ -153,6 +154,7 @@ export class TillService {
       restaurant.logoDataUrl = snapshot.settings.logoDataUrl;
       restaurant.requirePettyCash = snapshot.settings.requirePettyCash;
       restaurant.useInventory = snapshot.settings.useInventory;
+      restaurant.useTables = snapshot.settings.useTables;
       restaurant.nextToken = snapshot.nextToken;
       restaurant.floorPlan = snapshot.layout;
       restaurant.menuCategories = snapshot.categories;

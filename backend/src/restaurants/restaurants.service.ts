@@ -4,8 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { getAuth, getAuthPool } from '../auth/auth';
+import { BusinessDay } from '../database/entities/business-day.entity';
+import { Order } from '../database/entities/order.entity';
 import {
   Restaurant,
   type RestaurantStatus,
@@ -39,6 +41,7 @@ export class RestaurantsService {
   constructor(
     @InjectRepository(Restaurant)
     private readonly restaurants: Repository<Restaurant>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async list(): Promise<RestaurantListItem[]> {
@@ -117,6 +120,35 @@ export class RestaurantsService {
     await ctx.internalAdapter.updatePassword(owner.id, hash);
     await ctx.internalAdapter.deleteUserSessions(owner.id);
     return { ok: true };
+  }
+
+  /** Wipe tickets and business days. Keeps menu stock, expenses, staff, layout. */
+  async clearSales(id: string) {
+    const restaurant = await this.restaurants.findOne({ where: { id } });
+    if (!restaurant) throw new NotFoundException('Restaurant not found.');
+
+    const removed = await this.dataSource.transaction(async (em) => {
+      const orderCount = await em.count(Order, { where: { restaurantId: id } });
+      const dayCount = await em.count(BusinessDay, {
+        where: { restaurantId: id },
+      });
+      await em.query(
+        'DELETE oi FROM order_items oi INNER JOIN orders o ON oi.orderId = o.id WHERE o.restaurantId = ?',
+        [id],
+      );
+      await em.delete(Order, { restaurantId: id });
+      await em.delete(BusinessDay, { restaurantId: id });
+      restaurant.nextToken = 1;
+      await em.save(restaurant);
+      return { orders: orderCount, days: dayCount };
+    });
+
+    return {
+      ok: true,
+      clearedOrders: removed.orders,
+      clearedDays: removed.days,
+      nextToken: 1,
+    };
   }
 
   private async ownerEmails() {

@@ -126,6 +126,21 @@ export function SettingsScreen() {
           Turn stock off if the kitchen does not count portions. The order screen
           hides remaining counts. Inventory stays so you can edit dishes.
         </p>
+        <label className="check-row" htmlFor="settings-tables">
+          <input
+            id="settings-tables"
+            type="checkbox"
+            checked={settings.useTables}
+            onChange={(event) =>
+              updateSettings({ useTables: event.currentTarget.checked })
+            }
+          />
+          Show tables and dine-in
+        </label>
+        <p className="subhead">
+          Turn this off for takeaway-only shops. The Tables tab and dine-in toggle
+          stay hidden on the till.
+        </p>
       </section>
     </main>
   );

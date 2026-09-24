@@ -11,9 +11,10 @@ export function PayDialog({
   token: number;
   total: number;
   onClose: () => void;
-  onPaid: (payment: PaymentMethod) => void;
+  onPaid: (payment: PaymentMethod, extras: { printBill: boolean }) => void;
 }) {
   const [paidWith, setPaidWith] = useState<PaymentMethod | null>(null);
+  const [printBill, setPrintBill] = useState(true);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -24,7 +25,7 @@ export function PayDialog({
   }, [onClose]);
 
   function pay(method: PaymentMethod) {
-    onPaid(method);
+    onPaid(method, { printBill });
     setPaidWith(method);
   }
 
@@ -67,6 +68,17 @@ export function PayDialog({
           ادائیگی
         </p>
         <p className="subhead">Choose how they paid.</p>
+
+        <label className="check-row" htmlFor="pay-print-bill">
+          <input
+            id="pay-print-bill"
+            type="checkbox"
+            checked={printBill}
+            onChange={(event) => setPrintBill(event.currentTarget.checked)}
+          />
+          Print bill
+          <span className="urdu">بل پرنٹ کریں</span>
+        </label>
 
         <div className="pay-methods" role="group" aria-label="Payment method">
           <button
