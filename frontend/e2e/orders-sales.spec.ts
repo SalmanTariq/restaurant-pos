@@ -76,7 +76,7 @@ test.describe("expenses and balance", () => {
     await expect(page.getByRole("cell", { name: "Red onions", exact: true })).toBeVisible();
     await expect(page.getByRole("cell", { name: /Rs 300/ })).toBeVisible();
     page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("row", { name: /Red onions/ }).getByRole("button", { name: "Delete" }).click();
+    await page.getByRole("row", { name: /Red onions/ }).getByRole("button", { name: "Delete Red onions" }).click();
     await expect(page.getByRole("cell", { name: "Red onions", exact: true })).toHaveCount(0);
   });
 });

@@ -1418,6 +1418,9 @@ select:focus-visible {
 .row-actions {
   text-align: right;
   white-space: nowrap;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .data-table .text-btn {

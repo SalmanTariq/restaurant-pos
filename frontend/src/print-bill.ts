@@ -209,6 +209,10 @@ function printCss(extra: string) {
       max-width: 80mm;
       image-orientation: none;
     }
+    #pos-print-root .slip.is-thermal {
+      width: 80mm;
+      overflow: hidden;
+    }
     @media screen {
       #pos-print-root {
         position: fixed;
@@ -249,13 +253,20 @@ function cssPxToMm(px: number) {
 }
 
 const ROLL_WIDTH_MM = 80;
+const MIN_PORTRAIT_PAGE_MM = 100;
+
+function thermalPageHeightMm(contentHeightMm: number) {
+  // Two lengths plus `portrait` is invalid CSS, so Chrome drops @page and the
+  // 80mm driver falls back to landscape. Keep height clearly above the width.
+  return Math.max(Math.ceil(contentHeightMm + 2), MIN_PORTRAIT_PAGE_MM);
+}
 
 function receiptPageBox(heightMm: number) {
-  // Chrome treats a page that is wider than it is tall as landscape. On an
-  // 80mm roll that rotates a short KOT 90° and feeds a square of blank paper.
-  const pageMm = Math.max(Math.ceil(heightMm + 2), ROLL_WIDTH_MM + 1);
-  return `
-    @page { size: ${ROLL_WIDTH_MM}mm ${pageMm}mm portrait; margin: 0; }
+  const pageMm = thermalPageHeightMm(heightMm);
+  return {
+    pageMm,
+    css: `
+    @page { size: ${ROLL_WIDTH_MM}mm ${pageMm}mm; margin: 0; }
     @media print {
       html, body {
         width: ${ROLL_WIDTH_MM}mm !important;
@@ -264,7 +275,8 @@ function receiptPageBox(heightMm: number) {
         overflow: hidden !important;
       }
     }
-  `;
+  `,
+  };
 }
 
 function receiptPageSize(root: HTMLElement) {
@@ -282,8 +294,6 @@ async function rasterizeChit(chit: HTMLElement, css: string) {
   const scale = 2;
   const width = Math.ceil(rect.width);
   const height = Math.ceil(rect.height);
-  const canvasWidth = width * scale;
-  const canvasHeight = Math.max(height * scale, canvasWidth + scale);
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width * scale}" height="${height * scale}" viewBox="0 0 ${width} ${height}">
   <foreignObject x="0" y="0" width="${width}" height="${height}">
@@ -300,13 +310,13 @@ async function rasterizeChit(chit: HTMLElement, css: string) {
     image.src = url;
     await image.decode();
     const canvas = document.createElement("canvas");
-    canvas.width = canvasWidth;
-    canvas.height = canvasHeight;
+    canvas.width = width * scale;
+    canvas.height = height * scale;
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(image, 0, 0, width * scale, height * scale);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL("image/png");
   } catch {
     return null;
@@ -365,14 +375,17 @@ function showPrintSlip(extraCss: string, inner: string) {
       if (chit) {
         const png = await rasterizeChit(chit, style.textContent ?? "");
         if (png) {
-          root.innerHTML = `<div class="slip"><img class="receipt-bitmap" alt="" src="${png}" /></div>`;
+          root.innerHTML = `<div class="slip is-thermal"><img class="receipt-bitmap" alt="" src="${png}" /></div>`;
           const bitmap = root.querySelector("img");
           if (bitmap) await bitmap.decode().catch(() => {});
         }
       }
       requestAnimationFrame(() => {
         if (settled) return;
-        style.textContent += receiptPageSize(root);
+        const page = receiptPageSize(root);
+        style.textContent += page.css;
+        const slip = root.querySelector<HTMLElement>(".slip");
+        if (slip) slip.style.minHeight = `${page.pageMm}mm`;
         try {
           window.print();
           window.setTimeout(done, 120_000);

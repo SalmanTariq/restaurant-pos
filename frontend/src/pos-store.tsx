@@ -54,6 +54,12 @@ import {
   tillIsDirty,
   type TillSyncState,
 } from "./till-sync";
+import {
+  applyMenuPhotos,
+  loadMenuPhotos,
+  menuWithoutPhotos,
+  saveMenuPhotos,
+} from "./menu-photos";
 
 type PlaceInput = {
   type: PosOrder["type"];
@@ -100,6 +106,7 @@ type PosContextValue = {
   deleteExpense: (id: string) => void;
   addStaff: (name: string, dailyWage: number) => void;
   updateStaff: (staffId: string, patch: { name?: string; dailyWage?: number }) => void;
+  deleteStaff: (staffId: string) => void;
   recordWage: (staffId: string, date: string) => boolean;
   days: DayOpen[];
   todayOpen: DayOpen | null;
@@ -142,11 +149,12 @@ function tillHasWork(till: TillSnapshot) {
 }
 
 function cacheTill(restaurantId: string, till: TillSnapshot) {
+  void saveMenuPhotos(restaurantId, till.menu);
   const writes: Array<[string, string]> = [
     [ORDERS_KEY, JSON.stringify({ orders: till.orders, nextToken: till.nextToken })],
     [BOOKS_KEY, JSON.stringify({ expenses: till.expenses, staff: till.staff })],
     [DAYS_KEY, JSON.stringify(till.days)],
-    [MENU_KEY, JSON.stringify(till.menu)],
+    [MENU_KEY, JSON.stringify(menuWithoutPhotos(till.menu))],
     [SETTINGS_KEY, JSON.stringify(till.settings)],
     [LAYOUT_KEY, JSON.stringify(till.layout)],
     [CATEGORIES_KEY, JSON.stringify(till.categories)],
@@ -154,17 +162,7 @@ function cacheTill(restaurantId: string, till: TillSnapshot) {
   try {
     for (const [key, value] of writes) writeTenantItem(key, restaurantId, value);
   } catch {
-    try {
-      writeTenantItem(
-        MENU_KEY,
-        restaurantId,
-        JSON.stringify(
-          till.menu.map((item) => ({ ...item, imageDataUrl: null })),
-        ),
-      );
-    } catch {
-      // device storage is full — server copy is the source of truth
-    }
+    // device storage is full — photos live in IndexedDB / server
   }
 }
 
@@ -409,10 +407,21 @@ export function PosProvider({
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const local = localTill(restaurantId);
+      const photos = await loadMenuPhotos(restaurantId);
+      let local: TillSnapshot = {
+        ...localTill(restaurantId),
+      };
+      local = {
+        ...local,
+        menu: applyMenuPhotos(local.menu, photos),
+      };
       const dirty = tillIsDirty(restaurantId);
       try {
         const remote = await api<TillSnapshot>("/till");
+        local = {
+          ...local,
+          menu: applyMenuPhotos(local.menu, photos, remote.menu),
+        };
         const migrate = !tillHasWork(remote) && tillHasWork(local);
         const keepLocal = dirty && local.menu.length > 0;
         if (keepLocal || migrate) {
@@ -424,7 +433,14 @@ export function PosProvider({
           if (!cancelled) applyTill(local, true);
           return;
         }
-        if (!cancelled) applyTill(remote, true);
+        const recovered: TillSnapshot = {
+          ...remote,
+          menu: applyMenuPhotos(remote.menu, photos, local.menu),
+        };
+        const photosMatch =
+          JSON.stringify(recovered.menu.map((item) => item.imageDataUrl)) ===
+          JSON.stringify(remote.menu.map((item) => item.imageDataUrl));
+        if (!cancelled) applyTill(recovered, photosMatch);
       } catch (error) {
         if (cancelled) return;
         applyTill(local, false);
@@ -712,6 +728,10 @@ export function PosProvider({
     );
   }
 
+  function deleteStaff(staffId: string) {
+    setStaff((current) => current.filter((member) => member.id !== staffId));
+  }
+
   function recordWage(staffId: string, date: string) {
     const member = staff.find((entry) => entry.id === staffId);
     if (!member) return false;
@@ -903,6 +923,7 @@ export function PosProvider({
     deleteExpense,
     addStaff,
     updateStaff,
+    deleteStaff,
     recordWage,
     days,
     todayOpen,
