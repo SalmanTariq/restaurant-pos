@@ -102,6 +102,7 @@ mysqldump \
   --port="$MYSQL_PORT" \
   --user="$MYSQL_USER" \
   --single-transaction \
+  --no-tablespaces \
   --routines \
   --triggers \
   --events \
