@@ -60,4 +60,23 @@ test.describe("expenses and balance", () => {
     await expect(page.getByText("Labor wages")).toBeVisible();
     await expect(page.getByText("Rs 250").first()).toBeVisible();
   });
+
+  test("edits and deletes an expense", async ({ page }) => {
+    await mockApi(page);
+    await signIn(page, "owner@test.com");
+    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Expenses" }).click();
+    await page.getByLabel("Title").fill("Onions");
+    await page.getByLabel("Amount (Rs)").fill("250");
+    await page.getByRole("button", { name: "Save expense" }).click();
+    await page.getByRole("button", { name: "Edit Onions" }).click();
+    await expect(page.getByRole("heading", { name: "Edit expense" })).toBeVisible();
+    await page.getByLabel("Title").fill("Red onions");
+    await page.getByLabel("Amount (Rs)").fill("300");
+    await page.getByRole("button", { name: "Update expense" }).click();
+    await expect(page.getByRole("cell", { name: "Red onions", exact: true })).toBeVisible();
+    await expect(page.getByRole("cell", { name: /Rs 300/ })).toBeVisible();
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.getByRole("row", { name: /Red onions/ }).getByRole("button", { name: "Delete" }).click();
+    await expect(page.getByRole("cell", { name: "Red onions", exact: true })).toHaveCount(0);
+  });
 });

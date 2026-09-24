@@ -227,6 +227,20 @@ export function todayISO() {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
+export function daysAgoISO(days: number) {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() - days);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/** Default report window: yesterday through today. */
+export function defaultReportRange() {
+  return { from: daysAgoISO(1), to: todayISO() };
+}
+
 export function openBusinessDay<T extends { closedAt?: string | null }>(
   days: T[],
 ) {

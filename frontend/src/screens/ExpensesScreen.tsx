@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from "react";
-import { EXPENSE_CATEGORIES, inDateRange, rupees, todayISO } from "../demo-data";
+import { EXPENSE_CATEGORIES, defaultReportRange, inDateRange, rupees, todayISO } from "../demo-data";
 import { usePos } from "../pos-store";
 import {
   downloadReport,
@@ -9,13 +9,44 @@ import {
 } from "../export-report";
 import { DateRangeFields } from "./DateRangeFields";
 import { ExportButtons } from "./ExportButtons";
+import type { ExpenseRow } from "../pos-types";
 import { restaurantSlug } from "../settings";
+
+function PencilIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
 
 export function ExpensesScreen() {
   const today = todayISO();
-  const { expenses, staff, addExpense, addStaff, recordWage, settings } = usePos();
-  const [from, setFrom] = useState(today);
-  const [to, setTo] = useState(today);
+  const initialRange = defaultReportRange();
+  const {
+    expenses,
+    staff,
+    addExpense,
+    updateExpense,
+    deleteExpense,
+    addStaff,
+    updateStaff,
+    recordWage,
+    settings,
+  } = usePos();
+  const [from, setFrom] = useState(initialRange.from);
+  const [to, setTo] = useState(initialRange.to);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [title, setTitle] = useState("");
@@ -27,6 +58,10 @@ export function ExpensesScreen() {
   const [dailyWage, setDailyWage] = useState("");
   const [wageDate, setWageDate] = useState(today);
   const [wageNote, setWageNote] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editWage, setEditWage] = useState("");
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -68,21 +103,41 @@ export function ExpensesScreen() {
     );
   }
 
+  function clearExpenseForm() {
+    setTitle("");
+    setAmount("");
+    setNotes("");
+    setDate(todayISO());
+    setNewCategory(EXPENSE_CATEGORIES[1]);
+    setEditingExpenseId(null);
+  }
+
+  function startEditExpense(row: ExpenseRow) {
+    setEditingExpenseId(row.id);
+    setTitle(row.title);
+    setAmount(String(row.amount));
+    setNotes(row.notes);
+    setDate(row.date);
+    setNewCategory(row.category);
+  }
+
   function onSubmit(event: FormEvent) {
     event.preventDefault();
     const value = Number(amount);
     if (!title.trim() || !Number.isFinite(value) || value <= 0) return;
-    addExpense({
+    const patch = {
       title: title.trim(),
       category: newCategory,
       amount: value,
       date,
       notes: notes.trim(),
-    });
-    setTitle("");
-    setAmount("");
-    setNotes("");
-    setDate(todayISO());
+    };
+    if (editingExpenseId) {
+      updateExpense(editingExpenseId, patch);
+    } else {
+      addExpense(patch);
+    }
+    clearExpenseForm();
   }
 
   function onAddStaff(event: FormEvent) {
@@ -157,27 +212,90 @@ export function ExpensesScreen() {
                 const paid = expenses.some(
                   (row) => row.staffId === member.id && row.date === wageDate,
                 );
+                const editing = editingId === member.id;
                 return (
                   <li key={member.id}>
-                    <div>
-                      <strong>{member.name}</strong>
-                      <span>{rupees(member.dailyWage)} / day</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-tandoor"
-                      disabled={paid}
-                      onClick={() => {
-                        const ok = recordWage(member.id, wageDate);
-                        setWageNote(
-                          ok
-                            ? `Recorded ${member.name}`
-                            : `${member.name} already paid for ${wageDate}`,
-                        );
-                      }}
-                    >
-                      {paid ? "Paid" : "Record wage"}
-                    </button>
+                    {editing ? (
+                      <form
+                        className="wage-edit"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          const value = Number(editWage);
+                          if (!editName.trim() || !Number.isFinite(value) || value <= 0) {
+                            return;
+                          }
+                          updateStaff(member.id, {
+                            name: editName,
+                            dailyWage: value,
+                          });
+                          setEditingId(null);
+                          setWageNote(`Updated ${editName.trim()}`);
+                        }}
+                      >
+                        <input
+                          type="text"
+                          aria-label={`Name for ${member.name}`}
+                          value={editName}
+                          onChange={(event) => setEditName(event.currentTarget.value)}
+                          required
+                        />
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          aria-label={`Daily wage for ${member.name}`}
+                          value={editWage}
+                          onChange={(event) => setEditWage(event.currentTarget.value)}
+                          required
+                        />
+                        <button type="submit" className="text-btn">
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          className="text-btn"
+                          onClick={() => setEditingId(null)}
+                        >
+                          Cancel
+                        </button>
+                      </form>
+                    ) : (
+                      <>
+                        <div className="wage-person">
+                          <strong>{member.name}</strong>
+                          <span>{rupees(member.dailyWage)} / day</span>
+                        </div>
+                        <div className="wage-actions">
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            aria-label={`Edit ${member.name}`}
+                            onClick={() => {
+                              setEditingId(member.id);
+                              setEditName(member.name);
+                              setEditWage(String(member.dailyWage));
+                            }}
+                          >
+                            <PencilIcon />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-tandoor"
+                            disabled={paid}
+                            onClick={() => {
+                              const ok = recordWage(member.id, wageDate);
+                              setWageNote(
+                                ok
+                                  ? `Recorded ${member.name}`
+                                  : `${member.name} already paid for ${wageDate}`,
+                              );
+                            }}
+                          >
+                            {paid ? "Paid" : "Record wage"}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </li>
                 );
               })}
@@ -187,7 +305,7 @@ export function ExpensesScreen() {
         </section>
 
         <form className="login-card users-form" onSubmit={onSubmit}>
-          <h2>Add expense</h2>
+          <h2>{editingExpenseId ? "Edit expense" : "Add expense"}</h2>
           <label htmlFor="exp-title">Title</label>
           <input
             id="exp-title"
@@ -202,7 +320,10 @@ export function ExpensesScreen() {
             value={newCategory}
             onChange={(event) => setNewCategory(event.currentTarget.value)}
           >
-            {EXPENSE_CATEGORIES.map((name) => (
+            {(EXPENSE_CATEGORIES.includes(newCategory)
+              ? EXPENSE_CATEGORIES
+              : [newCategory, ...EXPENSE_CATEGORIES]
+            ).map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>
@@ -233,9 +354,20 @@ export function ExpensesScreen() {
             value={notes}
             onChange={(event) => setNotes(event.currentTarget.value)}
           />
-          <button className="btn-tandoor" type="submit">
-            Save expense
-          </button>
+          <div className="wage-actions">
+            <button className="btn-tandoor" type="submit">
+              {editingExpenseId ? "Update expense" : "Save expense"}
+            </button>
+            {editingExpenseId ? (
+              <button
+                className="text-btn"
+                type="button"
+                onClick={clearExpenseForm}
+              >
+                Cancel
+              </button>
+            ) : null}
+          </div>
         </form>
 
         <section className="data-panel">
@@ -277,12 +409,13 @@ export function ExpensesScreen() {
                   <th>Date</th>
                   <th>Notes</th>
                   <th>Amount</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {visible.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="empty-cell">
+                    <td colSpan={6} className="empty-cell">
                       No expenses match these filters.
                     </td>
                   </tr>
@@ -294,6 +427,34 @@ export function ExpensesScreen() {
                       <td>{row.date}</td>
                       <td>{row.notes || "—"}</td>
                       <td className="num">{rupees(row.amount)}</td>
+                      <td className="row-actions">
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label={`Edit ${row.title}`}
+                          onClick={() => startEditExpense(row)}
+                        >
+                          <PencilIcon />
+                        </button>
+                        <button
+                          type="button"
+                          className="text-btn"
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Delete expense “${row.title}”?`,
+                              )
+                            ) {
+                              deleteExpense(row.id);
+                              if (editingExpenseId === row.id) {
+                                clearExpenseForm();
+                              }
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}

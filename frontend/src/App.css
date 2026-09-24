@@ -1957,6 +1957,10 @@ select:focus-visible {
   border-top: 1px solid var(--line);
 }
 
+.wage-person {
+  min-width: 0;
+}
+
 .wage-list strong {
   display: block;
 }
@@ -1966,9 +1970,50 @@ select:focus-visible {
   font-size: 13px;
 }
 
+.wage-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.wage-list .icon-btn,
+.data-table .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink-soft);
+}
+
+.wage-list .icon-btn:hover,
+.data-table .icon-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+
+.wage-edit {
+  display: grid;
+  grid-template-columns: 1fr 88px auto auto;
+  gap: 8px;
+  width: 100%;
+  align-items: center;
+}
+
+.wage-edit input {
+  min-height: 40px;
+  margin: 0;
+}
+
 .wage-list .btn-tandoor {
   width: auto;
   min-height: 40px;
+  margin: 0;
   padding: 0 12px;
   font-size: 13px;
 }

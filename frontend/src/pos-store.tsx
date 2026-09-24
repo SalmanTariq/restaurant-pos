@@ -96,7 +96,10 @@ type PosContextValue = {
   expenses: ExpenseRow[];
   staff: StaffMember[];
   addExpense: (row: Omit<ExpenseRow, "id">) => void;
+  updateExpense: (id: string, patch: Omit<ExpenseRow, "id" | "staffId">) => void;
+  deleteExpense: (id: string) => void;
   addStaff: (name: string, dailyWage: number) => void;
+  updateStaff: (staffId: string, patch: { name?: string; dailyWage?: number }) => void;
   recordWage: (staffId: string, date: string) => boolean;
   days: DayOpen[];
   todayOpen: DayOpen | null;
@@ -655,6 +658,30 @@ export function PosProvider({
     ]);
   }
 
+  function updateExpense(
+    id: string,
+    patch: Omit<ExpenseRow, "id" | "staffId">,
+  ) {
+    setExpenses((current) =>
+      current.map((row) =>
+        row.id === id
+          ? {
+              ...row,
+              title: patch.title,
+              category: patch.category,
+              amount: patch.amount,
+              date: patch.date,
+              notes: patch.notes,
+            }
+          : row,
+      ),
+    );
+  }
+
+  function deleteExpense(id: string) {
+    setExpenses((current) => current.filter((row) => row.id !== id));
+  }
+
   function addStaff(name: string, dailyWage: number) {
     const trimmed = name.trim();
     if (!trimmed || !Number.isFinite(dailyWage) || dailyWage <= 0) return;
@@ -662,6 +689,27 @@ export function PosProvider({
       ...current,
       { id: `staff-${Date.now()}`, name: trimmed, dailyWage },
     ]);
+  }
+
+  function updateStaff(
+    staffId: string,
+    patch: { name?: string; dailyWage?: number },
+  ) {
+    setStaff((current) =>
+      current.map((member) => {
+        if (member.id !== staffId) return member;
+        const name =
+          typeof patch.name === "string" ? patch.name.trim() : member.name;
+        const dailyWage =
+          typeof patch.dailyWage === "number" &&
+          Number.isFinite(patch.dailyWage) &&
+          patch.dailyWage > 0
+            ? patch.dailyWage
+            : member.dailyWage;
+        if (!name) return member;
+        return { ...member, name, dailyWage };
+      }),
+    );
   }
 
   function recordWage(staffId: string, date: string) {
@@ -851,7 +899,10 @@ export function PosProvider({
     expenses,
     staff,
     addExpense,
+    updateExpense,
+    deleteExpense,
     addStaff,
+    updateStaff,
     recordWage,
     days,
     todayOpen,

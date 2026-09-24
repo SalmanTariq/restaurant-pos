@@ -4,6 +4,7 @@ import {
   itemsLabel,
   lineTotal,
   rupees,
+  defaultReportRange,
   todayISO,
 } from "../demo-data";
 import { usePos } from "../pos-store";
@@ -64,8 +65,9 @@ export function SalesScreen({
 }) {
   const { orders, expenses, days, settings } = usePos();
   const today = todayISO();
-  const [from, setFrom] = useState(today);
-  const [to, setTo] = useState(today);
+  const initialRange = defaultReportRange();
+  const [from, setFrom] = useState(initialRange.from);
+  const [to, setTo] = useState(initialRange.to);
   const [query, setQuery] = useState("");
   const [payment, setPayment] = useState<"all" | PaymentMethod>("all");
   const [orderType, setOrderType] = useState<"all" | OrderType>("all");

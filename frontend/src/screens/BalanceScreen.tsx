@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { EXPENSE_CATEGORIES, inDateRange, lineTotal, rupees, todayISO } from "../demo-data";
+import { EXPENSE_CATEGORIES, defaultReportRange, inDateRange, lineTotal, rupees, todayISO } from "../demo-data";
 import { usePos } from "../pos-store";
 import {
   downloadReport,
@@ -13,9 +13,10 @@ import { restaurantSlug } from "../settings";
 
 export function BalanceScreen() {
   const today = todayISO();
+  const initialRange = defaultReportRange();
   const { orders, expenses, days, settings } = usePos();
-  const [from, setFrom] = useState(today);
-  const [to, setTo] = useState(today);
+  const [from, setFrom] = useState(initialRange.from);
+  const [to, setTo] = useState(initialRange.to);
 
   const paid = useMemo(
     () =>
