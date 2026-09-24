@@ -43,7 +43,7 @@ export function TablesScreen({
   onSelect: (id: string) => void;
   onBack: () => void;
 }) {
-  const { layout, saveLayout, activeOrders } = usePos();
+  const { layout, saveLayout, activeOrders, canAmendCatalog } = usePos();
   const [removing, setRemoving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const layoutRef = useRef(layout);
@@ -243,13 +243,14 @@ export function TablesScreen({
         <button type="button" className="btn-ink back-order" onClick={onBack}>
           Back to order
         </button>
-        <button type="button" className="ghost-btn floor-add" onClick={addTable}>
+        <button type="button" className="ghost-btn floor-add" onClick={addTable} disabled={!canAmendCatalog}>
           Add table
         </button>
         <button
           type="button"
           className={`ghost-btn floor-edit${removing ? " is-on" : ""}`}
           aria-pressed={removing}
+          disabled={!canAmendCatalog}
           onClick={() => {
             setRemoving((value) => !value);
             setNotice(null);
@@ -257,7 +258,7 @@ export function TablesScreen({
         >
           {removing ? "Done removing" : "Remove tables"}
         </button>
-        <button type="button" className="ghost-btn floor-reset" onClick={resetLayout}>
+        <button type="button" className="ghost-btn floor-reset" onClick={resetLayout} disabled={!canAmendCatalog}>
           Reset layout
         </button>
       </div>

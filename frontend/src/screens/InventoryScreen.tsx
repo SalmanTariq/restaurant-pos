@@ -9,6 +9,7 @@ import {
 } from "react";
 import { rupees, stockLabel, stockTone } from "../demo-data";
 import { downloadInventoryCsv } from "../inventory-csv";
+import { CATALOG_OFFLINE_ERROR } from "../till-merge";
 import { usePos } from "../pos-store";
 import type { MenuItem } from "../pos-types";
 import { isLogoDataUrl, openDishPhotoFile, restaurantSlug } from "../settings";
@@ -60,6 +61,7 @@ export function InventoryScreen() {
     onTickets,
     categories,
     settings,
+    canAmendCatalog,
   } = usePos();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -107,6 +109,7 @@ export function InventoryScreen() {
             {settings.useInventory
               ? "Record what the kitchen cooked. Drag a dish to set its place on Order."
               : "Add and edit dishes. Drag a dish to set its place on Order."}
+            {!canAmendCatalog ? ` ${CATALOG_OFFLINE_ERROR}` : ""}
           </p>
         </div>
         <div className="head-tools">
@@ -130,6 +133,7 @@ export function InventoryScreen() {
                   type="file"
                   accept=".csv,text/csv"
                   aria-label="Import inventory CSV"
+                  disabled={!canAmendCatalog}
                   onChange={(event) => {
                     const file = event.currentTarget.files?.[0];
                     event.currentTarget.value = "";
@@ -191,7 +195,7 @@ export function InventoryScreen() {
         onEdit={onEdit}
         onAskDelete={askDelete}
         showStock={settings.useInventory}
-        canDrag={!query.trim()}
+        canDrag={!query.trim() && canAmendCatalog}
       />
       {pendingDelete ? (
         <DeleteDishDialog
@@ -224,7 +228,8 @@ const CookBoard = memo(function CookBoard({
   showStock: boolean;
   canDrag: boolean;
 }) {
-  const { available, onTickets, addCooked, moveMenuItem } = usePos();
+  const { available, onTickets, addCooked, moveMenuItem, canAmendCatalog } =
+    usePos();
   const [cookQty, setCookQty] = useState<Record<string, string>>({});
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -359,6 +364,7 @@ const CookBoard = memo(function CookBoard({
                   className="cook-icon is-danger"
                   aria-label={`Delete ${item.name}`}
                   title="Delete"
+                  disabled={!canAmendCatalog}
                   onClick={() => onAskDelete(item)}
                 >
                   <TrashIcon />
@@ -395,6 +401,7 @@ const CookBoard = memo(function CookBoard({
               <button
                 className="btn-cook"
                 type="button"
+                disabled={!canAmendCatalog}
                 onClick={() => cook(item.id)}
               >
                 Add cooked
@@ -420,7 +427,8 @@ function InventoryEditor({
   onClose: () => void;
   onAskDelete: (item: MenuItem) => void;
 }) {
-  const { saveMenuItem, onTickets, categories, settings, menu } = usePos();
+  const { saveMenuItem, onTickets, categories, settings, menu, canAmendCatalog } =
+    usePos();
   const [form, setForm] = useState<ItemForm>(() =>
     item ? formFromItem(item, remaining) : emptyForm(categories[0] ?? "Other"),
   );
@@ -612,7 +620,12 @@ function InventoryEditor({
         />
         Active on order screen
       </label>
-      <button className="btn-tandoor" type="button" onClick={save}>
+      <button
+        className="btn-tandoor"
+        type="button"
+        onClick={save}
+        disabled={!canAmendCatalog}
+      >
         {editing ? "Save changes" : "Add to menu"}
       </button>
       {editing ? (
@@ -631,6 +644,7 @@ function InventoryEditor({
             <button
               type="button"
               className="btn-danger"
+              disabled={!canAmendCatalog}
               onClick={() => onAskDelete(item)}
             >
               Delete from menu

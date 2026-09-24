@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { usePos } from "../pos-store";
+import { CATALOG_OFFLINE_ERROR } from "../till-merge";
 import { readLogoFile } from "../settings";
 
 export function SettingsScreen() {
-  const { settings, updateSettings } = usePos();
+  const { settings, updateSettings, canAmendCatalog } = usePos();
   const [name, setName] = useState(settings.restaurantName);
   const [saved, setSaved] = useState(false);
   const [logoError, setLogoError] = useState("");
@@ -40,11 +41,13 @@ export function SettingsScreen() {
           <h1>Settings</h1>
           <p className="subhead">
             Restaurant name and logo appear on the till and on printed bills.
+            {!canAmendCatalog ? ` ${CATALOG_OFFLINE_ERROR}` : ""}
           </p>
         </div>
       </div>
 
       <form className="login-card users-form settings-card" onSubmit={onSaveName}>
+        <fieldset disabled={!canAmendCatalog}>
         <h2>Restaurant</h2>
         <label htmlFor="settings-name">Name</label>
         <input
@@ -96,9 +99,11 @@ export function SettingsScreen() {
             {logoError}
           </p>
         ) : null}
+        </fieldset>
       </form>
 
       <section className="login-card users-form settings-card">
+        <fieldset disabled={!canAmendCatalog}>
         <h2>Till options</h2>
         <label className="check-row" htmlFor="settings-petty">
           <input
@@ -141,6 +146,7 @@ export function SettingsScreen() {
           Turn this off for takeaway-only shops. The Tables tab and dine-in toggle
           stay hidden on the till.
         </p>
+        </fieldset>
       </section>
     </main>
   );

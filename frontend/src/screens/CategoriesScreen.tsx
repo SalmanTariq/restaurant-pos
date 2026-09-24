@@ -1,9 +1,16 @@
 import { FormEvent, useMemo, useState } from "react";
 import { usePos } from "../pos-store";
+import { CATALOG_OFFLINE_ERROR } from "../till-merge";
 
 export function CategoriesScreen() {
-  const { menu, categories, addCategory, renameCategory, deleteCategory } =
-    usePos();
+  const {
+    menu,
+    categories,
+    addCategory,
+    renameCategory,
+    deleteCategory,
+    canAmendCatalog,
+  } = usePos();
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
@@ -72,6 +79,7 @@ export function CategoriesScreen() {
           <h1>Categories</h1>
           <p className="subhead">
             Names cashiers tap on Order. New dishes pick from this list.
+            {!canAmendCatalog ? ` ${CATALOG_OFFLINE_ERROR}` : ""}
           </p>
         </div>
       </div>
@@ -88,13 +96,14 @@ export function CategoriesScreen() {
             autoComplete="off"
             placeholder="Karahi"
             required
+            disabled={!canAmendCatalog}
           />
           {error && !pending ? (
             <p className="auth-error" role="alert">
               {error}
             </p>
           ) : null}
-          <button className="btn-tandoor" type="submit">
+          <button className="btn-tandoor" type="submit" disabled={!canAmendCatalog}>
             Add category
           </button>
         </form>

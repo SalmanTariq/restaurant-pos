@@ -60,6 +60,10 @@ import {
   menuWithoutPhotos,
   saveMenuPhotos,
 } from "./menu-photos";
+import {
+  CATALOG_OFFLINE_ERROR,
+  snapshotWithLocalTillWork,
+} from "./till-merge";
 
 type PlaceInput = {
   type: PosOrder["type"];
@@ -114,6 +118,7 @@ type PosContextValue = {
   endDay: () => string | null;
   settings: PosSettings;
   updateSettings: (patch: Partial<PosSettings>) => void;
+  canAmendCatalog: boolean;
 };
 
 const ORDERS_KEY = "dmn_pos_orders";
@@ -350,6 +355,7 @@ export function PosProvider({
     status: "saving",
     error: null,
   });
+  const [catalogOnline, setCatalogOnline] = useState(isBrowserOnline);
   const lastPushedJson = useRef<string | null>(null);
   const restaurantIdRef = useRef(restaurantId);
   restaurantIdRef.current = restaurantId;
@@ -360,6 +366,17 @@ export function PosProvider({
     clearTillDirty(restaurantIdRef.current);
   };
   onStatusRef.current = setSync;
+  useEffect(() => {
+    function syncOnline() {
+      setCatalogOnline(isBrowserOnline());
+    }
+    window.addEventListener("online", syncOnline);
+    window.addEventListener("offline", syncOnline);
+    return () => {
+      window.removeEventListener("online", syncOnline);
+      window.removeEventListener("offline", syncOnline);
+    };
+  }, []);
   const pusherRef = useRef(
     createTillPusher({
       put: (body) =>
@@ -404,6 +421,13 @@ export function PosProvider({
     }
   }
 
+  function requireCatalog() {
+    if (isBrowserOnline()) return true;
+    setCatalogOnline(false);
+    setSync({ status: "error", error: CATALOG_OFFLINE_ERROR });
+    return false;
+  }
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -423,14 +447,28 @@ export function PosProvider({
           menu: applyMenuPhotos(local.menu, photos, remote.menu),
         };
         const migrate = !tillHasWork(remote) && tillHasWork(local);
-        const keepLocal = dirty && local.menu.length > 0;
-        if (keepLocal || migrate) {
+        const keepTillWork =
+          dirty &&
+          (local.orders.length > 0 ||
+            local.expenses.length > 0 ||
+            local.days.length > 0);
+        if (migrate) {
           markTillDirty(restaurantId);
           await api("/till", {
             method: "PUT",
             body: JSON.stringify(local),
           });
           if (!cancelled) applyTill(local, true);
+          return;
+        }
+        if (keepTillWork) {
+          const merged = snapshotWithLocalTillWork(local, remote);
+          markTillDirty(restaurantId);
+          await api("/till", {
+            method: "PUT",
+            body: JSON.stringify(merged),
+          });
+          if (!cancelled) applyTill(merged, true);
           return;
         }
         const recovered: TillSnapshot = {
@@ -546,6 +584,7 @@ export function PosProvider({
   }
 
   function saveLayout(next: TableLayout[]) {
+    if (!requireCatalog()) return;
     setLayout(next);
   }
 
@@ -563,6 +602,7 @@ export function PosProvider({
   function addCooked(itemId: string, qty: number) {
     const n = Math.floor(qty);
     if (!Number.isFinite(n) || n <= 0) return;
+    if (!requireCatalog()) return;
     setMenu((current) =>
       current.map((item) =>
         item.id === itemId ? { ...item, stock: item.stock + n } : item,
@@ -699,6 +739,7 @@ export function PosProvider({
   }
 
   function addStaff(name: string, dailyWage: number) {
+    if (!requireCatalog()) return;
     const trimmed = name.trim();
     if (!trimmed || !Number.isFinite(dailyWage) || dailyWage <= 0) return;
     setStaff((current) => [
@@ -711,6 +752,7 @@ export function PosProvider({
     staffId: string,
     patch: { name?: string; dailyWage?: number },
   ) {
+    if (!requireCatalog()) return;
     setStaff((current) =>
       current.map((member) => {
         if (member.id !== staffId) return member;
@@ -729,6 +771,7 @@ export function PosProvider({
   }
 
   function deleteStaff(staffId: string) {
+    if (!requireCatalog()) return;
     setStaff((current) => current.filter((member) => member.id !== staffId));
   }
 
@@ -758,6 +801,7 @@ export function PosProvider({
   }
 
   function saveMenuItem(item: MenuItem) {
+    if (!requireCatalog()) return;
     setMenu((current) => {
       const exists = current.some((entry) => entry.id === item.id);
       if (exists) {
@@ -772,13 +816,16 @@ export function PosProvider({
   }
 
   function importMenuFromCsv(text: string) {
-    let result = mergeInventoryCsv(menu, text);
+    if (!requireCatalog()) {
+      return { error: CATALOG_OFFLINE_ERROR, added: 0, updated: 0 };
+    }
+    const result = mergeInventoryCsv(menu, text);
     if (result.error) return { error: result.error, added: 0, updated: 0 };
     setMenu(result.menu);
     setCategories((current) =>
       mergeMenuCategories(
         current,
-        result.menu.map((item) => item.category),
+        result.menu.map((entry) => entry.category),
       ),
     );
     return { added: result.added, updated: result.updated };
@@ -786,14 +833,17 @@ export function PosProvider({
 
   function deleteMenuItem(id: string) {
     if (!id) return;
+    if (!requireCatalog()) return;
     setMenu((current) => current.filter((entry) => entry.id !== id));
   }
 
   function moveMenuItem(fromId: string, toId: string) {
+    if (!requireCatalog()) return;
     setMenu((current) => placeMenuItem(current, fromId, toId));
   }
 
   function addCategory(name: string) {
+    if (!requireCatalog()) return CATALOG_OFFLINE_ERROR;
     const next = addMenuCategory(categories, name);
     if (!next.ok) return next.error;
     setCategories(next.list);
@@ -801,6 +851,7 @@ export function PosProvider({
   }
 
   function renameCategory(from: string, to: string) {
+    if (!requireCatalog()) return CATALOG_OFFLINE_ERROR;
     const next = renameMenuCategory(categories, from, to);
     if (!next.ok) return next.error;
     const previous = next.from ?? from;
@@ -816,6 +867,7 @@ export function PosProvider({
   }
 
   function deleteCategory(name: string, moveTo?: string) {
+    if (!requireCatalog()) return CATALOG_OFFLINE_ERROR;
     const next = removeMenuCategory(categories, name);
     if (!next.ok) return next.error;
     const fallback =
@@ -873,6 +925,7 @@ export function PosProvider({
   }, [orders]);
 
   function updateSettings(patch: Partial<PosSettings>) {
+    if (!requireCatalog()) return;
     setSettings((current) => {
       const restaurantName =
         typeof patch.restaurantName === "string"
@@ -931,6 +984,7 @@ export function PosProvider({
     endDay,
     settings,
     updateSettings,
+    canAmendCatalog: catalogOnline,
   };
 
   return <PosContext.Provider value={value}>{children}</PosContext.Provider>;

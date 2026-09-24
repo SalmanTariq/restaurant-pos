@@ -1,4 +1,5 @@
 import type { MenuItem } from "./pos-types";
+import { isLogoDataUrl } from "./settings";
 
 export const INVENTORY_CSV_HEADERS = [
   "id",
@@ -8,6 +9,7 @@ export const INVENTORY_CSV_HEADERS = [
   "price",
   "stock",
   "active",
+  "photo",
 ] as const;
 
 function csvEscape(value: string | number | boolean) {
@@ -92,6 +94,9 @@ export function inventoryToCsv(menu: MenuItem[]) {
         item.price,
         item.stock,
         item.active ? "true" : "false",
+        item.imageDataUrl && isLogoDataUrl(item.imageDataUrl)
+          ? item.imageDataUrl
+          : "",
       ]
         .map(csvEscape)
         .join(","),
@@ -140,6 +145,13 @@ export function mergeInventoryCsv(
   const priceIdx = col(["price", "sale_price", "saleprice"]);
   const stockIdx = col(["stock", "qty", "quantity", "remaining"]);
   const activeIdx = col(["active", "is_active", "visible"]);
+  const photoIdx = col([
+    "photo",
+    "image",
+    "image_data_url",
+    "imagedataurl",
+    "picture",
+  ]);
 
   const next = current.map((item) => ({ ...item }));
   let added = 0;
@@ -155,6 +167,8 @@ export function mergeInventoryCsv(
     const stockRaw = stockIdx >= 0 ? record[stockIdx] : "";
     const price = Number(priceRaw);
     const stock = Number(stockRaw);
+    const photoRaw = (photoIdx >= 0 ? record[photoIdx] : "").trim();
+    const photo = isLogoDataUrl(photoRaw) ? photoRaw : null;
     const byId = id ? next.findIndex((item) => item.id === id) : -1;
     const byName = next.findIndex(
       (item) => item.name.trim().toLowerCase() === name.toLowerCase(),
@@ -171,6 +185,7 @@ export function mergeInventoryCsv(
         stock:
           Number.isFinite(stock) && stock >= 0 ? Math.floor(stock) : prev.stock,
         active: activeIdx >= 0 ? readActive(record[activeIdx] ?? "", prev.active) : prev.active,
+        imageDataUrl: photo ?? prev.imageDataUrl ?? null,
       };
       updated += 1;
     } else {
@@ -190,7 +205,7 @@ export function mergeInventoryCsv(
         price,
         stock: Number.isFinite(stock) && stock >= 0 ? Math.floor(stock) : 0,
         active: activeIdx >= 0 ? readActive(record[activeIdx] ?? "", true) : true,
-        imageDataUrl: null,
+        imageDataUrl: photo,
       });
       added += 1;
     }

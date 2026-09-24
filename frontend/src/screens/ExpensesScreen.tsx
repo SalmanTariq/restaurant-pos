@@ -67,6 +67,7 @@ export function ExpensesScreen() {
     deleteStaff,
     recordWage,
     settings,
+    canAmendCatalog,
   } = usePos();
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
@@ -205,6 +206,7 @@ export function ExpensesScreen() {
               onChange={(event) => setWorkerName(event.currentTarget.value)}
               placeholder="Name"
               required
+              disabled={!canAmendCatalog}
             />
             <label htmlFor="wage-amount">Daily wage (Rs)</label>
             <input
@@ -215,8 +217,9 @@ export function ExpensesScreen() {
               value={dailyWage}
               onChange={(event) => setDailyWage(event.currentTarget.value)}
               required
+              disabled={!canAmendCatalog}
             />
-            <button className="btn-ink" type="submit">
+            <button className="btn-ink" type="submit" disabled={!canAmendCatalog}>
               Add worker
             </button>
           </form>
@@ -293,6 +296,7 @@ export function ExpensesScreen() {
                             type="button"
                             className="icon-btn"
                             aria-label={`Edit ${member.name}`}
+                            disabled={!canAmendCatalog}
                             onClick={() => {
                               setEditingId(member.id);
                               setEditName(member.name);
@@ -305,6 +309,7 @@ export function ExpensesScreen() {
                             type="button"
                             className="icon-btn"
                             aria-label={`Delete ${member.name}`}
+                            disabled={!canAmendCatalog}
                             onClick={() => {
                               if (
                                 window.confirm(

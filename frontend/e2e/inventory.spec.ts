@@ -51,8 +51,7 @@ test.describe("inventory", () => {
     await expect(page.getByText(name)).toBeVisible();
     await saved;
     await page.reload();
-    await expect(page.locator('[data-cat-nav="Karahi"]')).toBeVisible();
-    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Inventory" }).click();
+    await expect(page.getByRole("heading", { name: "Inventory" })).toBeVisible();
     await expect(page.getByText(name)).toBeVisible();
   });
 
@@ -69,6 +68,31 @@ test.describe("inventory", () => {
     await expect(page.getByText("روٹی تازہ")).toBeVisible();
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Order", exact: true }).click();
     await expect(page.getByText("روٹی تازہ")).toBeVisible();
+  });
+
+  test("imports a dish photo from csv", async ({ page }) => {
+    const photo =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    await page.getByLabel("Import inventory CSV").setInputFiles({
+      name: "menu.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(
+        `\uFEFFid,name,name_urdu,category,price,stock,active,photo\nroti,Tandoori Roti,,Naan & Roti,25,40,true,"${photo}"\n`,
+        "utf8",
+      ),
+    });
+    await expect(page.getByText("Updated 1, added 0.")).toBeVisible();
+    await expect(
+      page.locator("[data-menu-id='roti'] img.cook-thumb"),
+    ).toHaveAttribute("src", photo);
+  });
+
+  test("blocks adding a dish while offline", async ({ page, context }) => {
+    await context.setOffline(true);
+    await expect(page.getByRole("button", { name: "Add to menu" })).toBeDisabled();
+    await expect(
+      page.getByText(/Connect to the internet to change the menu/),
+    ).toBeVisible();
   });
 
   test("adds a dish to the menu", async ({ page }) => {
