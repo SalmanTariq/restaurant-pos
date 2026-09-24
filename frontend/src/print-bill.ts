@@ -207,6 +207,7 @@ function printCss(extra: string) {
       width: 80mm;
       height: auto;
       max-width: 80mm;
+      image-orientation: none;
     }
     @media screen {
       #pos-print-root {
@@ -247,15 +248,17 @@ function cssPxToMm(px: number) {
   return px * 25.4 / 96;
 }
 
+const ROLL_WIDTH_MM = 80;
+
 function receiptPageBox(heightMm: number) {
-  // Match the roll length to the rendered receipt. Keep only 2 mm after the
-  // last line so the cutter clears it without feeding a fixed blank section.
-  const pageMm = Math.max(20, Math.ceil(heightMm + 2));
+  // Chrome treats a page that is wider than it is tall as landscape. On an
+  // 80mm roll that rotates a short KOT 90° and feeds a square of blank paper.
+  const pageMm = Math.max(Math.ceil(heightMm + 2), ROLL_WIDTH_MM + 1);
   return `
-    @page { size: 80mm ${pageMm}mm; margin: 0; }
+    @page { size: ${ROLL_WIDTH_MM}mm ${pageMm}mm portrait; margin: 0; }
     @media print {
       html, body {
-        width: 80mm !important;
+        width: ${ROLL_WIDTH_MM}mm !important;
         height: ${pageMm}mm !important;
         max-height: ${pageMm}mm !important;
         overflow: hidden !important;
@@ -279,6 +282,8 @@ async function rasterizeChit(chit: HTMLElement, css: string) {
   const scale = 2;
   const width = Math.ceil(rect.width);
   const height = Math.ceil(rect.height);
+  const canvasWidth = width * scale;
+  const canvasHeight = Math.max(height * scale, canvasWidth + scale);
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width * scale}" height="${height * scale}" viewBox="0 0 ${width} ${height}">
   <foreignObject x="0" y="0" width="${width}" height="${height}">
@@ -295,13 +300,13 @@ async function rasterizeChit(chit: HTMLElement, css: string) {
     image.src = url;
     await image.decode();
     const canvas = document.createElement("canvas");
-    canvas.width = width * scale;
-    canvas.height = height * scale;
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, width * scale, height * scale);
     return canvas.toDataURL("image/png");
   } catch {
     return null;
