@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { inDateRange, rupees, todayISO } from "../demo-data";
+import { inDateTimeRange, rupees, todayISO, START_OF_DAY, END_OF_DAY } from "../demo-data";
 import {
   downloadReport,
   fileStamp,
@@ -24,13 +24,15 @@ export function ItemsSoldScreen() {
   const today = todayISO();
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
+  const [fromTime, setFromTime] = useState(START_OF_DAY);
+  const [toTime, setToTime] = useState(END_OF_DAY);
   const [query, setQuery] = useState("");
 
   const rows = useMemo(() => {
     const tally = new Map<string, SoldRow>();
     for (const order of orders) {
       if (order.status !== "paid") continue;
-      if (!inDateRange(order.date, from, to)) continue;
+      if (!inDateTimeRange(order.date, order.time, from, fromTime, to, toTime)) continue;
       for (const line of order.lines) {
         const category =
           menu.find((item) => item.id === line.id)?.category ?? "Other";
@@ -57,7 +59,7 @@ export function ItemsSoldScreen() {
         );
       })
       .sort((a, b) => b.qty - a.qty || b.amount - a.amount);
-  }, [from, menu, orders, query, to]);
+  }, [from, fromTime, menu, orders, query, to, toTime]);
 
   const totalQty = rows.reduce((sum, row) => sum + row.qty, 0);
   const totalAmount = rows.reduce((sum, row) => sum + row.amount, 0);
@@ -65,9 +67,9 @@ export function ItemsSoldScreen() {
   function exportItems(format: ExportFormat) {
     downloadReport(
       {
-        basename: `${restaurantSlug(settings.restaurantName)}-items-${fileStamp(from, to)}`,
+        basename: `${restaurantSlug(settings.restaurantName)}-items-${fileStamp(from, to, fromTime, toTime)}`,
         title: `${settings.restaurantName} - Items sold`,
-        subtitle: `${rangeLabel(from, to)} · ${rows.length} items · ${totalQty} sold · ${rupees(totalAmount)}`,
+        subtitle: `${rangeLabel(from, to, fromTime, toTime)} · ${rows.length} items · ${totalQty} sold · ${rupees(totalAmount)}`,
         headers: ["Item", "Category", "Qty sold", "Amount"],
         rows: rows.map((row) => [row.name, row.category, row.qty, row.amount]),
         totalLabel: "Total",
@@ -89,15 +91,31 @@ export function ItemsSoldScreen() {
         </div>
         <div className="head-tools">
           <div className="range-row">
-            <DateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} />
+            <DateRangeFields
+              from={from}
+              to={to}
+              fromTime={fromTime}
+              toTime={toTime}
+              onFrom={setFrom}
+              onTo={setTo}
+              onFromTime={setFromTime}
+              onToTime={setToTime}
+            />
             <button
               type="button"
               className="range-today"
-              disabled={from === today && to === today}
+              disabled={
+                from === today &&
+                to === today &&
+                fromTime === START_OF_DAY &&
+                toTime === END_OF_DAY
+              }
               onClick={() => {
                 const day = todayISO();
                 setFrom(day);
                 setTo(day);
+                setFromTime(START_OF_DAY);
+                setToTime(END_OF_DAY);
               }}
             >
               Today

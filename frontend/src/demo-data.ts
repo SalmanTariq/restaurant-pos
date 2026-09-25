@@ -237,8 +237,57 @@ export function daysAgoISO(days: number) {
 }
 
 /** Default report window: yesterday through today. */
+export const START_OF_DAY = "00:00";
+export const END_OF_DAY = "23:59";
+
 export function defaultReportRange() {
-  return { from: daysAgoISO(1), to: todayISO() };
+  return {
+    from: daysAgoISO(1),
+    to: todayISO(),
+    fromTime: START_OF_DAY,
+    toTime: END_OF_DAY,
+  };
+}
+
+export function padClockPart(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+/** Minutes from midnight for "1:10 PM" or "13:10". */
+export function clockToMinutes(time: string): number | null {
+  const raw = time.trim();
+  if (!raw) return null;
+  const ampm = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*([AP]M)$/i);
+  if (ampm) {
+    let hour = Number(ampm[1]) % 12;
+    if (ampm[3].toUpperCase() === "PM") hour += 12;
+    return hour * 60 + Number(ampm[2]);
+  }
+  const military = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (!military) return null;
+  const hour = Number(military[1]);
+  const minute = Number(military[2]);
+  if (hour > 23 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
+export function minutesToTimeInput(minutes: number) {
+  const clamped = Math.max(0, Math.min(23 * 60 + 59, minutes));
+  return `${padClockPart(Math.floor(clamped / 60))}:${padClockPart(clamped % 60)}`;
+}
+
+function localStamp(date: string, time: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const parsed = clockToMinutes(time) ?? 0;
+  return new Date(
+    year,
+    (month || 1) - 1,
+    day || 1,
+    Math.floor(parsed / 60),
+    parsed % 60,
+    0,
+    0,
+  ).getTime();
 }
 
 export function openBusinessDay<T extends { closedAt?: string | null }>(
@@ -248,7 +297,28 @@ export function openBusinessDay<T extends { closedAt?: string | null }>(
 }
 
 export function inDateRange(date: string, from: string, to: string) {
-  return date >= from && date <= to;
+  return inDateTimeRange(date, undefined, from, START_OF_DAY, to, END_OF_DAY);
+}
+
+export function inDateTimeRange(
+  date: string,
+  time: string | undefined,
+  from: string,
+  fromTime: string,
+  to: string,
+  toTime: string,
+) {
+  if (!date) return false;
+  const start = localStamp(from, fromTime || START_OF_DAY);
+  const end = localStamp(to, toTime || END_OF_DAY);
+  const minutes = time ? clockToMinutes(time) : null;
+  if (minutes == null) {
+    const dayStart = localStamp(date, START_OF_DAY);
+    const dayEnd = localStamp(date, END_OF_DAY);
+    return dayEnd >= start && dayStart <= end;
+  }
+  const at = localStamp(date, minutesToTimeInput(minutes));
+  return at >= start && at <= end;
 }
 
 export function lineTotal(lines: { price: number; qty: number }[]) {

@@ -99,7 +99,7 @@ type PosContextValue = {
   payOrder: (orderId: string, payment: PaymentMethod) => void;
   deleteOrder: (orderId: string) => void;
   saveMenuItem: (item: MenuItem) => void;
-  importMenuFromCsv: (text: string) => { error?: string; added: number; updated: number };
+  importMenuFromCsv: (text: string, photos?: Record<string, string>) => { error?: string; added: number; updated: number };
   deleteMenuItem: (id: string) => void;
   moveMenuItem: (fromId: string, toId: string) => void;
   refreshFloor: () => void;
@@ -815,11 +815,11 @@ export function PosProvider({
     });
   }
 
-  function importMenuFromCsv(text: string) {
+  function importMenuFromCsv(text: string, photos?: Record<string, string>) {
     if (!requireCatalog()) {
       return { error: CATALOG_OFFLINE_ERROR, added: 0, updated: 0 };
     }
-    const result = mergeInventoryCsv(menu, text);
+    const result = mergeInventoryCsv(menu, text, photos);
     if (result.error) return { error: result.error, added: 0, updated: 0 };
     setMenu(result.menu);
     setCategories((current) =>

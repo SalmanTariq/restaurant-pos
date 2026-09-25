@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { EXPENSE_CATEGORIES, defaultReportRange, inDateRange, lineTotal, rupees, todayISO } from "../demo-data";
+import { EXPENSE_CATEGORIES, defaultReportRange, inDateTimeRange, lineTotal, rupees, todayISO, START_OF_DAY, END_OF_DAY } from "../demo-data";
 import { usePos } from "../pos-store";
 import {
   downloadReport,
@@ -17,6 +17,8 @@ export function BalanceScreen() {
   const { orders, expenses, days, settings } = usePos();
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
+  const [fromTime, setFromTime] = useState(initialRange.fromTime);
+  const [toTime, setToTime] = useState(initialRange.toTime);
 
   const paid = useMemo(
     () =>
@@ -24,13 +26,13 @@ export function BalanceScreen() {
         (order) =>
           order.status === "paid" &&
           order.payment &&
-          inDateRange(order.date, from, to),
+          inDateTimeRange(order.date, order.time, from, fromTime, to, toTime),
       ),
-    [orders, from, to],
+    [orders, from, fromTime, to, toTime],
   );
   const spent = useMemo(
-    () => expenses.filter((row) => inDateRange(row.date, from, to)),
-    [expenses, from, to],
+    () => expenses.filter((row) => inDateTimeRange(row.date, undefined, from, fromTime, to, toTime)),
+    [expenses, from, fromTime, to, toTime],
   );
 
   const cash = paid
@@ -51,7 +53,7 @@ export function BalanceScreen() {
   })).filter((row) => row.amount > 0);
   const expenseTotal = spent.reduce((sum, row) => sum + row.amount, 0);
   const pettyCash = days
-    .filter((day) => inDateRange(day.date, from, to))
+    .filter((day) => inDateTimeRange(day.date, undefined, from, fromTime, to, toTime))
     .reduce((sum, day) => sum + day.pettyCash, 0);
   const cashInTill = pettyCash + cash - expenseTotal;
   const net = sales - expenseTotal;
@@ -72,9 +74,9 @@ export function BalanceScreen() {
   function exportBalance(format: ExportFormat) {
     downloadReport(
       {
-        basename: `${restaurantSlug(settings.restaurantName)}-balance-${fileStamp(from, to)}`,
+        basename: `${restaurantSlug(settings.restaurantName)}-balance-${fileStamp(from, to, fromTime, toTime)}`,
         title: `${settings.restaurantName} - Balance sheet`,
-        subtitle: rangeLabel(from, to),
+        subtitle: rangeLabel(from, to, fromTime, toTime),
         headers: ["Line", "Amount"],
         rows: exportRows,
         totalLabel: "Net",
@@ -98,15 +100,31 @@ export function BalanceScreen() {
         </div>
         <div className="head-tools">
           <div className="range-row">
-            <DateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} />
+            <DateRangeFields
+              from={from}
+              to={to}
+              fromTime={fromTime}
+              toTime={toTime}
+              onFrom={setFrom}
+              onTo={setTo}
+              onFromTime={setFromTime}
+              onToTime={setToTime}
+            />
             <button
               type="button"
               className="range-today"
-              disabled={from === today && to === today}
+              disabled={
+                from === today &&
+                to === today &&
+                fromTime === START_OF_DAY &&
+                toTime === END_OF_DAY
+              }
               onClick={() => {
                 const day = todayISO();
                 setFrom(day);
                 setTo(day);
+                setFromTime(START_OF_DAY);
+                setToTime(END_OF_DAY);
               }}
             >
               Today

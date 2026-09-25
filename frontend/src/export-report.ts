@@ -457,10 +457,27 @@ export function downloadReport(report: ReportPayload, format: ExportFormat) {
   );
 }
 
-export function rangeLabel(from: string, to: string) {
-  return from === to ? from : `${from} to ${to}`;
+export function rangeLabel(
+  from: string,
+  to: string,
+  fromTime = "00:00",
+  toTime = "23:59",
+) {
+  const wholeDays = fromTime === "00:00" && toTime === "23:59";
+  if (from === to && wholeDays) return from;
+  if (wholeDays) return `${from} to ${to}`;
+  if (from === to) return `${from} ${fromTime}–${toTime}`;
+  return `${from} ${fromTime} to ${to} ${toTime}`;
 }
 
-export function fileStamp(from: string, to: string) {
-  return from === to ? from : `${from}_to_${to}`;
+export function fileStamp(
+  from: string,
+  to: string,
+  fromTime = "00:00",
+  toTime = "23:59",
+) {
+  const wholeDays = fromTime === "00:00" && toTime === "23:59";
+  const start = wholeDays ? from : `${from}-${fromTime.replace(":", "")}`;
+  const end = wholeDays ? to : `${to}-${toTime.replace(":", "")}`;
+  return start === end ? start : `${start}_to_${end}`;
 }

@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from "react";
-import { EXPENSE_CATEGORIES, defaultReportRange, inDateRange, rupees, todayISO } from "../demo-data";
+import { EXPENSE_CATEGORIES, defaultReportRange, inDateTimeRange, rupees, todayISO } from "../demo-data";
 import { usePos } from "../pos-store";
 import {
   downloadReport,
@@ -71,6 +71,8 @@ export function ExpensesScreen() {
   } = usePos();
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
+  const [fromTime, setFromTime] = useState(initialRange.fromTime);
+  const [toTime, setToTime] = useState(initialRange.toTime);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [title, setTitle] = useState("");
@@ -90,7 +92,7 @@ export function ExpensesScreen() {
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return expenses.filter((row) => {
-      if (!inDateRange(row.date, from, to)) return false;
+      if (!inDateTimeRange(row.date, undefined, from, fromTime, to, toTime)) return false;
       if (category !== "all" && row.category !== category) return false;
       if (!needle) return true;
       return (
@@ -99,7 +101,7 @@ export function ExpensesScreen() {
         row.notes.toLowerCase().includes(needle)
       );
     });
-  }, [expenses, query, category, from, to]);
+  }, [expenses, query, category, from, fromTime, to, toTime]);
 
   const rangeTotal = visible.reduce((sum, row) => sum + row.amount, 0);
   const wageTotal = visible
@@ -109,9 +111,9 @@ export function ExpensesScreen() {
   function exportExpenses(format: ExportFormat) {
     downloadReport(
       {
-        basename: `${restaurantSlug(settings.restaurantName)}-expenses-${fileStamp(from, to)}`,
+        basename: `${restaurantSlug(settings.restaurantName)}-expenses-${fileStamp(from, to, fromTime, toTime)}`,
         title: `${settings.restaurantName} - Expenses`,
-        subtitle: `${rangeLabel(from, to)} · ${visible.length} expenses · ${rupees(rangeTotal)}`,
+        subtitle: `${rangeLabel(from, to, fromTime, toTime)} · ${visible.length} expenses · ${rupees(rangeTotal)}`,
         headers: ["Title", "Category", "Date", "Notes", "Amount"],
         rows: visible.map((row) => [
           row.title,
@@ -418,7 +420,16 @@ export function ExpensesScreen() {
 
         <section className="data-panel">
           <div className="filter-bar filter-bar-dates">
-            <DateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} />
+            <DateRangeFields
+              from={from}
+              to={to}
+              fromTime={fromTime}
+              toTime={toTime}
+              onFrom={setFrom}
+              onTo={setTo}
+              onFromTime={setFromTime}
+              onToTime={setToTime}
+            />
             <label className="filter-search">
               <span>Search expenses</span>
               <input

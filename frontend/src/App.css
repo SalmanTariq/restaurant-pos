@@ -903,6 +903,16 @@ select:focus-visible {
   background: #fff;
 }
 
+.range-pair {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.range-pair input[type="time"] {
+  min-width: 7.5rem;
+}
+
 .range-row {
   display: flex;
   align-items: flex-end;
@@ -2644,8 +2654,17 @@ select:focus-visible {
 
   .range-fields {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     width: 100%;
+  }
+
+  .range-pair {
+    width: 100%;
+  }
+
+  .range-pair input {
+    flex: 1;
+    min-width: 0;
   }
 
   .range-row {

@@ -36,6 +36,13 @@ test.describe("paid orders", () => {
     await expect(page.locator(".sales-page").getByText("Tandoori Roti", { exact: true })).toBeVisible();
   });
 
+  test("hides a paid ticket outside the selected time window", async ({ page }) => {
+    await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Sales" }).click();
+    await expect(page.getByRole("cell", { name: "#7" })).toBeVisible();
+    await page.getByLabel("To time").fill("08:00");
+    await expect(page.getByRole("cell", { name: "#7" })).toHaveCount(0);
+  });
+
   test("lists how many of each item sold", async ({ page }) => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Items sold" }).click();
     await expect(page).toHaveURL(/\/items$/);

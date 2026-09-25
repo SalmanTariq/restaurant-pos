@@ -1,5 +1,6 @@
 import type { MenuItem } from "./pos-types";
 import { isLogoDataUrl } from "./settings";
+import { unzipStore, zipStore } from "./zip-store";
 
 export const INVENTORY_CSV_HEADERS = [
   "id",
@@ -82,6 +83,32 @@ function newItemId() {
   return `item-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function safePhotoId(id: string) {
+  return id.replace(/[^a-zA-Z0-9._-]+/g, "-") || "item";
+}
+
+function parseDataUrl(url: string) {
+  const match = url.match(/^data:image\/(png|jpeg|jpg|webp|gif);base64,([\s\S]+)$/i);
+  if (!match) return null;
+  const kind = match[1].toLowerCase();
+  const ext = kind === "jpeg" || kind === "jpg" ? "jpg" : kind;
+  try {
+    const binary = atob(match[2]);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return { ext, bytes, mime: kind === "jpg" ? "jpeg" : kind };
+  } catch {
+    return null;
+  }
+}
+
+export function inventoryPhotoPath(item: MenuItem) {
+  if (!isLogoDataUrl(item.imageDataUrl)) return "";
+  const parsed = parseDataUrl(item.imageDataUrl);
+  if (!parsed) return "";
+  return `photos/${safePhotoId(item.id)}.${parsed.ext}`;
+}
+
 export function inventoryToCsv(menu: MenuItem[]) {
   const lines = [
     INVENTORY_CSV_HEADERS.join(","),
@@ -94,9 +121,7 @@ export function inventoryToCsv(menu: MenuItem[]) {
         item.price,
         item.stock,
         item.active ? "true" : "false",
-        item.imageDataUrl && isLogoDataUrl(item.imageDataUrl)
-          ? item.imageDataUrl
-          : "",
+        inventoryPhotoPath(item),
       ]
         .map(csvEscape)
         .join(","),
@@ -105,23 +130,94 @@ export function inventoryToCsv(menu: MenuItem[]) {
   return `\uFEFF${lines.join("\r\n")}`;
 }
 
-export function downloadInventoryCsv(menu: MenuItem[], basename: string) {
-  const blob = new Blob([inventoryToCsv(menu)], {
-    type: "text/csv;charset=utf-8",
-  });
+function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${basename}.csv`;
+  link.download = filename;
   document.body.appendChild(link);
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+export function downloadInventoryCsv(menu: MenuItem[], basename: string) {
+  triggerDownload(
+    new Blob([inventoryToCsv(menu)], { type: "text/csv;charset=utf-8" }),
+    `${basename}.csv`,
+  );
+}
+
+export function buildInventoryZip(menu: MenuItem[]) {
+  const files = [
+    { name: "menu.csv", data: new TextEncoder().encode(inventoryToCsv(menu)) },
+  ];
+  for (const item of menu) {
+    if (!isLogoDataUrl(item.imageDataUrl)) continue;
+    const parsed = parseDataUrl(item.imageDataUrl);
+    const path = inventoryPhotoPath(item);
+    if (!parsed || !path) continue;
+    files.push({ name: path, data: parsed.bytes });
+  }
+  return zipStore(files);
+}
+
+export function downloadInventoryArchive(menu: MenuItem[], basename: string) {
+  triggerDownload(
+    new Blob([buildInventoryZip(menu)], { type: "application/zip" }),
+    `${basename}.zip`,
+  );
+}
+
+function bytesToDataUrl(bytes: Uint8Array, name: string) {
+  const lower = name.toLowerCase();
+  const mime = lower.endsWith(".png")
+    ? "image/png"
+    : lower.endsWith(".webp")
+      ? "image/webp"
+      : lower.endsWith(".gif")
+        ? "image/gif"
+        : "image/jpeg";
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+  return `data:${mime};base64,${btoa(binary)}`;
+}
+
+function photoLookupKey(value: string) {
+  return value.trim().replace(/\\/g, "/").replace(/^\.\//, "").toLowerCase();
+}
+
+export async function readInventoryImport(file: File): Promise<{
+  csv: string;
+  photos: Record<string, string>;
+}> {
+  const name = file.name.toLowerCase();
+  if (!name.endsWith(".zip") && file.type !== "application/zip") {
+    return { csv: await file.text(), photos: {} };
+  }
+  const files = unzipStore(new Uint8Array(await file.arrayBuffer()));
+  const csvFile =
+    files.find((entry) => entry.name.replace(/\\/g, "/").toLowerCase().endsWith("menu.csv")) ??
+    files.find((entry) => entry.name.toLowerCase().endsWith(".csv"));
+  if (!csvFile) {
+    throw new Error("That zip needs a menu.csv file.");
+  }
+  const photos: Record<string, string> = {};
+  for (const entry of files) {
+    if (!/\.(png|jpe?g|webp|gif)$/i.test(entry.name)) continue;
+    const dataUrl = bytesToDataUrl(entry.data.slice(), entry.name);
+    const path = photoLookupKey(entry.name);
+    photos[path] = dataUrl;
+    const base = path.split("/").pop();
+    if (base) photos[base] = dataUrl;
+  }
+  return { csv: new TextDecoder().decode(csvFile.data), photos };
+}
+
 export function mergeInventoryCsv(
   current: MenuItem[],
   text: string,
+  photos: Record<string, string> = {},
 ): { menu: MenuItem[]; added: number; updated: number; error?: string } {
   const records = parseCsvRecords(text);
   if (records.length < 2) {
@@ -168,7 +264,12 @@ export function mergeInventoryCsv(
     const price = Number(priceRaw);
     const stock = Number(stockRaw);
     const photoRaw = (photoIdx >= 0 ? record[photoIdx] : "").trim();
-    const photo = isLogoDataUrl(photoRaw) ? photoRaw : null;
+    const fromFile = photos[photoLookupKey(photoRaw)] ?? photos[photoLookupKey(photoRaw.split(/[/\\]/).pop() ?? "")];
+    const photo = isLogoDataUrl(photoRaw)
+      ? photoRaw
+      : isLogoDataUrl(fromFile)
+        ? fromFile
+        : null;
     const byId = id ? next.findIndex((item) => item.id === id) : -1;
     const byName = next.findIndex(
       (item) => item.name.trim().toLowerCase() === name.toLowerCase(),

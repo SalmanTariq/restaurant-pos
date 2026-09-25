@@ -31,14 +31,23 @@ export async function saveMenuPhotos(
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE, "readwrite");
       const store = tx.objectStore(STORE);
+      const keep = new Set(menu.map((item) => item.id));
       for (const item of menu) {
-        const key = photoKey(restaurantId, item.id);
         if (isLogoDataUrl(item.imageDataUrl)) {
-          store.put(item.imageDataUrl, key);
-        } else {
-          store.delete(key);
+          store.put(item.imageDataUrl, photoKey(restaurantId, item.id));
         }
       }
+      const request = store.openCursor();
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) return;
+        const key = String(cursor.key);
+        const prefix = `${restaurantId}:`;
+        if (key.startsWith(prefix) && !keep.has(key.slice(prefix.length))) {
+          cursor.delete();
+        }
+        cursor.continue();
+      };
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });

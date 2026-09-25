@@ -8,7 +8,8 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { rupees, stockLabel, stockTone } from "../demo-data";
-import { downloadInventoryCsv } from "../inventory-csv";
+import { downloadInventoryArchive, readInventoryImport } from "../inventory-csv";
+import { applyMenuPhotos, loadMenuPhotos } from "../menu-photos";
 import { CATALOG_OFFLINE_ERROR } from "../till-merge";
 import { usePos } from "../pos-store";
 import type { MenuItem } from "../pos-types";
@@ -62,6 +63,7 @@ export function InventoryScreen() {
     categories,
     settings,
     canAmendCatalog,
+    restaurantId,
   } = usePos();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -114,16 +116,18 @@ export function InventoryScreen() {
         </div>
         <div className="head-tools">
           <div className="export-block">
-            <span>Menu CSV</span>
+            <span>Menu backup</span>
             <div className="export-group" role="group" aria-label="Inventory CSV">
               <button
                 type="button"
-                onClick={() =>
-                  downloadInventoryCsv(
-                    menu,
-                    `${restaurantSlug(settings.restaurantName)}-inventory`,
-                  )
-                }
+                onClick={() => {
+                  void loadMenuPhotos(restaurantId).then((photos) => {
+                    downloadInventoryArchive(
+                      applyMenuPhotos(menu, photos),
+                      `${restaurantSlug(settings.restaurantName)}-inventory`,
+                    );
+                  });
+                }}
               >
                 Export
               </button>
@@ -131,21 +135,29 @@ export function InventoryScreen() {
                 Import
                 <input
                   type="file"
-                  accept=".csv,text/csv"
+                  accept=".csv,.zip,text/csv,application/zip"
                   aria-label="Import inventory CSV"
                   disabled={!canAmendCatalog}
                   onChange={(event) => {
                     const file = event.currentTarget.files?.[0];
                     event.currentTarget.value = "";
                     if (!file) return;
-                    void file.text().then((text) => {
-                      const result = importMenuFromCsv(text);
-                      setCsvNote(
-                        result.error
-                          ? result.error
-                          : `Updated ${result.updated}, added ${result.added}.`,
-                      );
-                    });
+                    void readInventoryImport(file)
+                      .then(({ csv, photos }) => {
+                        const result = importMenuFromCsv(csv, photos);
+                        setCsvNote(
+                          result.error
+                            ? result.error
+                            : `Updated ${result.updated}, added ${result.added}.`,
+                        );
+                      })
+                      .catch((error) => {
+                        setCsvNote(
+                          error instanceof Error
+                            ? error.message
+                            : "Could not read that file.",
+                        );
+                      });
                   }}
                 />
               </label>

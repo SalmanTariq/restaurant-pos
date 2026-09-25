@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import {
-  inDateRange,
   itemsLabel,
   lineTotal,
   rupees,
   defaultReportRange,
   todayISO,
+  inDateTimeRange,
+  START_OF_DAY,
+  END_OF_DAY,
 } from "../demo-data";
 import { usePos } from "../pos-store";
 import type { OrderType, PaymentMethod, PosOrder, SaleRow } from "../pos-types";
@@ -68,6 +70,8 @@ export function SalesScreen({
   const initialRange = defaultReportRange();
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
+  const [fromTime, setFromTime] = useState(initialRange.fromTime);
+  const [toTime, setToTime] = useState(initialRange.toTime);
   const [query, setQuery] = useState("");
   const [payment, setPayment] = useState<"all" | PaymentMethod>("all");
   const [orderType, setOrderType] = useState<"all" | OrderType>("all");
@@ -79,8 +83,11 @@ export function SalesScreen({
   );
 
   const inRange = useMemo(
-    () => paid.filter((order) => inDateRange(order.date, from, to)),
-    [paid, from, to],
+    () =>
+      paid.filter((order) =>
+        inDateTimeRange(order.date, order.time, from, fromTime, to, toTime),
+      ),
+    [paid, from, fromTime, to, toTime],
   );
 
   const dated = useMemo(() => inRange.map(toSaleRow), [inRange]);
@@ -88,9 +95,11 @@ export function SalesScreen({
   const expenseTotal = useMemo(
     () =>
       expenses
-        .filter((row) => inDateRange(row.date, from, to))
+        .filter((row) =>
+          inDateTimeRange(row.date, undefined, from, fromTime, to, toTime),
+        )
         .reduce((sum, row) => sum + row.amount, 0),
-    [expenses, from, to],
+    [expenses, from, fromTime, to, toTime],
   );
 
   const cash = dated
@@ -100,7 +109,9 @@ export function SalesScreen({
     .filter((row) => row.payment === "online")
     .reduce((sum, row) => sum + row.total, 0);
   const pettyCash = days
-    .filter((day) => inDateRange(day.date, from, to))
+    .filter((day) =>
+      inDateTimeRange(day.date, undefined, from, fromTime, to, toTime),
+    )
     .reduce((sum, day) => sum + day.pettyCash, 0);
   const cashInDrawer = pettyCash + cash - expenseTotal;
   const topItems = topFromOrders(inRange);
@@ -131,9 +142,9 @@ export function SalesScreen({
   function exportSales(format: ExportFormat) {
     downloadReport(
       {
-        basename: `${restaurantSlug(settings.restaurantName)}-sales-${fileStamp(from, to)}`,
+        basename: `${restaurantSlug(settings.restaurantName)}-sales-${fileStamp(from, to, fromTime, toTime)}`,
         title: `${settings.restaurantName} - Sales`,
-        subtitle: `${rangeLabel(from, to)} · ${rows.length} orders · ${rupees(filteredTotal)}`,
+        subtitle: `${rangeLabel(from, to, fromTime, toTime)} · ${rows.length} orders · ${rupees(filteredTotal)}`,
         headers: ["Token", "Date", "Time", "Type", "Items", "Payment", "Amount"],
         rows: rows.map((row) => [
           row.token,
@@ -159,7 +170,7 @@ export function SalesScreen({
         <div>
           <h1>Sales</h1>
           <p className="subhead">
-            {from === to ? from : `${from} → ${to}`}
+            {rangeLabel(from, to, fromTime, toTime)}
             {from === today && to === today && todayOpen
               ? ` — day opened ${clockFromIso(todayOpen.openedAt)}.`
               : "."}{" "}
@@ -168,15 +179,31 @@ export function SalesScreen({
         </div>
         <div className="head-tools">
           <div className="range-row">
-            <DateRangeFields from={from} to={to} onFrom={setFrom} onTo={setTo} />
+            <DateRangeFields
+              from={from}
+              to={to}
+              fromTime={fromTime}
+              toTime={toTime}
+              onFrom={setFrom}
+              onTo={setTo}
+              onFromTime={setFromTime}
+              onToTime={setToTime}
+            />
             <button
               type="button"
               className="range-today"
-              disabled={from === today && to === today}
+              disabled={
+                from === today &&
+                to === today &&
+                fromTime === START_OF_DAY &&
+                toTime === END_OF_DAY
+              }
               onClick={() => {
                 const day = todayISO();
                 setFrom(day);
                 setTo(day);
+                setFromTime(START_OF_DAY);
+                setToTime(END_OF_DAY);
               }}
             >
               Today
