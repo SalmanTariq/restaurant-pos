@@ -17,7 +17,7 @@ function u32(view: DataView, offset: number, value: number) {
   view.setUint32(offset, value, true);
 }
 
-function concat(parts: Uint8Array[]) {
+function concat(parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
   const size = parts.reduce((sum, part) => sum + part.length, 0);
   const out = new Uint8Array(size);
   let offset = 0;
@@ -30,7 +30,7 @@ function concat(parts: Uint8Array[]) {
 
 export type ZipEntry = { name: string; data: Uint8Array };
 
-export function zipStore(files: ZipEntry[]): Uint8Array {
+export function zipStore(files: ZipEntry[]): Uint8Array<ArrayBuffer> {
   const locals: Uint8Array[] = [];
   const centrals: Uint8Array[] = [];
   let offset = 0;
