@@ -275,7 +275,7 @@ bind-address = 127.0.0.1
 innodb_buffer_pool_size = 128M
 max_allowed_packet = 64M
 performance_schema = OFF
-binlog_expire_logs_seconds = 259200
+skip-log-bin
 EOF
   systemctl restart mysql 2>/dev/null || systemctl restart mariadb
   wait_for_mysql
