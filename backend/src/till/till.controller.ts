@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
+import type { TillPatch } from './till-patch';
+import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import type { AuthSession } from '../auth/auth.guard';
 import { Session } from '../auth/session.decorator';
 import { ShopGuard } from '../restaurants/shop.guard';
@@ -12,6 +13,11 @@ export class TillController {
   @Get()
   get(@Session() session: AuthSession) {
     return this.till.get(session.user.restaurantId as string);
+  }
+
+  @Post('sync')
+  sync(@Session() session: AuthSession, @Body() body: TillPatch) {
+    return this.till.sync(session.user.restaurantId as string, body);
   }
 
   @Put()

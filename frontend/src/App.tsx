@@ -141,11 +141,38 @@ function SignedIn({
 }
 
 function App() {
-  const { data: session, isPending, isRefetching } = authClient.useSession();
+  const { data: session, isPending, isRefetching, error } = authClient.useSession();
+  type CachedIdentity = { user: NonNullable<typeof session>["user"]; expiresAt: string };
+  const [cachedIdentity, setCachedIdentity] = useState<CachedIdentity | null>(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem("pos_offline_identity") || "null") as CachedIdentity | null;
+      if (cached?.user?.id && Date.parse(cached.expiresAt) > Date.now()) return cached;
+    } catch { /* A missing/invalid identity cannot authorize offline startup. */ }
+    return null;
+  });
+  const [online, setOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+  }, []);
+  useEffect(() => {
+    if (session) {
+      const cached = { user: session.user, expiresAt: new Date(session.session.expiresAt).toISOString() };
+      setCachedIdentity(cached);
+      try { localStorage.setItem("pos_offline_identity", JSON.stringify(cached)); } catch { /* Online access still works. */ }
+    } else if (!isPending && !isRefetching && !error && online) {
+      setCachedIdentity(null);
+      localStorage.removeItem("pos_offline_identity");
+    }
+  }, [session, isPending, isRefetching, error, online]);
   const heldSession = useRef(session);
   if (session) heldSession.current = session;
   if (!session && !isPending && !isRefetching) heldSession.current = null;
-  const view = session ?? heldSession.current;
+  const offlineIdentity = (!online || (error && (!error.status || error.status >= 500))) && cachedIdentity && Date.parse(cachedIdentity.expiresAt) > Date.now()
+    && cachedIdentity.user.role !== "platform" ? cachedIdentity : null;
+  const view = session ?? heldSession.current ?? offlineIdentity;
   const role = view?.user.role;
   const restaurantId = (
     view?.user as { restaurantId?: string | null } | undefined
@@ -175,7 +202,7 @@ function App() {
   }
 
   return (
-    <PosProvider restaurantId={restaurantId}>
+    <PosProvider key={restaurantId} restaurantId={restaurantId}>
       <SignedIn name={view.user.name} role={role} />
     </PosProvider>
   );

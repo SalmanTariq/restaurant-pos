@@ -114,6 +114,7 @@ export type PosOrder = {
   date: string;
   time: string;
   payment?: PaymentMethod;
+  paidAt?: string;
   collected?: number;
   change?: number;
 };

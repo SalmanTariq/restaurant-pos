@@ -1,3 +1,5 @@
+import { ApiError } from "./api";
+import { applyPatch, diffTill, type TillPatch } from "./till-patch";
 import type { TillSnapshot } from "./pos-types";
 import { readTenantItem, writeTenantItem } from "./tenant-storage";
 
@@ -43,9 +45,25 @@ function saveErrorMessage(error: unknown) {
   return "Could not save to the server";
 }
 
+export const TILL_OUTBOX_KEY = "dmn_pos_till_outbox_v1";
+
+export function readTillOutbox(restaurantId: string): TillPatch | null {
+  const raw = localStorage.getItem(`${TILL_OUTBOX_KEY}:${restaurantId}`);
+  if (!raw) return null;
+  const parsed = JSON.parse(raw) as TillPatch;
+  if (!Array.isArray(parsed.changes)) throw new Error("The offline queue could not be read. Local data has been retained.");
+  return parsed;
+}
+
+export function writeTillOutbox(restaurantId: string, patch: TillPatch) {
+  // Failing this write must stop sync; never claim an undurable offline save.
+  writeTenantItem(TILL_OUTBOX_KEY, restaurantId, JSON.stringify(patch));
+}
+
 export function createTillPusher(options: {
-  put: (body: TillSnapshot) => Promise<unknown>;
+  put: (body: TillPatch) => Promise<unknown>;
   isOnline?: () => boolean;
+  persist?: (patch: TillPatch) => void;
   onSaved?: (till: TillSnapshot) => void;
   onStatus?: (state: TillSyncState) => void;
 }) {
@@ -54,13 +72,36 @@ export function createTillPusher(options: {
   let queued: TillSnapshot | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let retry = 0;
+  let base: TillSnapshot | null = null;
+  let blocked = false;
+  let stopped = false;
+  let submitted: TillPatch | null = null;
 
   function setStatus(status: TillSyncStatus, error: string | null = null) {
     options.onStatus?.({ status, error });
   }
 
+  function initialize(snapshot: TillSnapshot, pending?: TillPatch | null) {
+    base = pending ? applyPatch(snapshot, pending, "before") : structuredClone(snapshot);
+    if (pending?.following) base = applyPatch(base, pending.following, "before");
+    if (pending?.submitted) base = applyPatch(base, pending.submitted, "before");
+    submitted = pending?.submitted || null;
+    blocked = false;
+  }
+
+  function journal(desired: TillSnapshot): TillPatch {
+    return { ...diffTill(base!, desired), ...(submitted ? {
+      submitted, following: diffTill(applyPatch(base!, submitted), desired),
+    } : {}) };
+  }
+
   function enqueue(till: TillSnapshot) {
-    queued = till;
+    if (stopped) return;
+    if (!base) { setStatus("error", "Load the till before saving."); return; }
+    queued = structuredClone(till);
+    try { options.persist?.(journal(queued)); }
+    catch { blocked = true; setStatus("error", "Device storage is full. Keep this window open; offline changes could not be saved."); return; }
+    if (blocked) return;
     if (!isOnline()) {
       setStatus("queued");
       return;
@@ -69,18 +110,24 @@ export function createTillPusher(options: {
   }
 
   async function drain() {
-    if (inflight) return;
+    if (inflight || blocked || stopped) return;
     if (!isOnline()) {
       if (queued) setStatus("queued");
       return;
     }
-    const payload = queued;
-    if (!payload) return;
-    queued = null;
+    if (!queued && !submitted) return;
+    const payload = submitted ? applyPatch(base!, submitted) : queued!;
+    if (!submitted) queued = null;
     inflight = true;
     setStatus("saving");
     try {
-      await options.put(payload);
+      const patch = submitted || diffTill(base!, payload);
+      submitted = patch;
+      options.persist?.(journal(queued || payload));
+      if (patch.changes.length) await options.put(patch);
+      base = payload;
+      submitted = null;
+      options.persist?.(queued ? diffTill(base, queued) : { changes: [] });
       retry = 0;
       if (!queued) {
         options.onSaved?.(payload);
@@ -89,7 +136,10 @@ export function createTillPusher(options: {
     } catch (error) {
       queued = queued ?? payload;
       setStatus("error", saveErrorMessage(error));
-      if (isOnline()) {
+      if (error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429) {
+        blocked = true;
+      }
+      if (!blocked && isOnline()) {
         retry = Math.min(retry + 1, 5);
         timer = window.setTimeout(() => {
           timer = null;
@@ -99,7 +149,7 @@ export function createTillPusher(options: {
     } finally {
       inflight = false;
     }
-    if (queued && !timer && isOnline()) void drain();
+    if (queued && !blocked && !stopped && !timer && isOnline()) void drain();
   }
 
   function flushNow() {
@@ -118,12 +168,16 @@ export function createTillPusher(options: {
     if (queued || inflight) setStatus("queued");
   }
 
-  if (typeof window !== "undefined") {
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
+  function start() {
+    stopped = false;
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", onOnline);
+      window.addEventListener("offline", onOffline);
+    }
   }
 
   function stop() {
+    stopped = true;
     if (timer) {
       window.clearTimeout(timer);
       timer = null;
@@ -134,5 +188,5 @@ export function createTillPusher(options: {
     }
   }
 
-  return { enqueue, flushNow, stop };
+  return { initialize, enqueue, flushNow, start, stop };
 }

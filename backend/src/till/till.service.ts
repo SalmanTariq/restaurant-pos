@@ -1,12 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { applyTillChanges } from './till-incremental';
+import type { TillPatch } from './till-patch';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { BusinessDay } from '../database/entities/business-day.entity';
 import { DiningTable } from '../database/entities/dining-table.entity';
 import { Expense } from '../database/entities/expense.entity';
 import { MenuItem } from '../database/entities/menu-item.entity';
-import { Order, OrderItem } from '../database/entities/order.entity';
-import { OrderStatus, OrderType, PaymentMethod } from '../database/entities/enums';
+import { Order } from '../database/entities/order.entity';
 import { Restaurant } from '../database/entities/restaurant.entity';
 import { WageStaff } from '../database/entities/wage-staff.entity';
 import { DEFAULT_FLOOR, DEFAULT_MENU } from './default-catalog';
@@ -15,7 +16,6 @@ import {
   asDate,
   money,
   moneyStr,
-  normalizeTillSnapshot,
   readLayout,
   type TillOrder,
   type TillSnapshot,
@@ -143,154 +143,19 @@ export class TillService {
     };
   }
 
-  async save(restaurantId: string, body: Partial<TillSnapshot>) {
-    await this.requireRestaurant(restaurantId);
-    const snapshot = normalizeTillSnapshot(body);
-    await this.dataSource.transaction(async (em) => {
-      const restaurant = await em.findOneByOrFail(Restaurant, {
-        id: restaurantId,
+  async save(_restaurantId: string, _body: Partial<TillSnapshot>) {
+    throw new ConflictException('This till version uses unsafe full-snapshot saves. Reload the app to update before syncing.');
+  }
+
+  async sync(restaurantId: string, patch: TillPatch) {
+    return this.dataSource.transaction(async (em) => {
+      // Serializes writers for this restaurant; comparisons and writes are atomic.
+      const restaurant = await em.findOne(Restaurant, {
+        where: { id: restaurantId }, lock: { mode: 'pessimistic_write' },
       });
-      restaurant.name = snapshot.settings.restaurantName;
-      restaurant.logoDataUrl = snapshot.settings.logoDataUrl;
-      restaurant.requirePettyCash = snapshot.settings.requirePettyCash;
-      restaurant.useInventory = snapshot.settings.useInventory;
-      restaurant.useTables = snapshot.settings.useTables;
-      restaurant.nextToken = snapshot.nextToken;
-      restaurant.floorPlan = snapshot.layout;
-      restaurant.menuCategories = snapshot.categories;
-      await em.save(restaurant);
-
-      await em.query(
-        'DELETE oi FROM order_items oi INNER JOIN orders o ON oi.orderId = o.id WHERE o.restaurantId = ?',
-        [restaurantId],
-      );
-      await em.delete(Order, { restaurantId });
-      await em.delete(MenuItem, { restaurantId });
-      await em.delete(Expense, { restaurantId });
-      await em.delete(WageStaff, { restaurantId });
-      await em.delete(BusinessDay, { restaurantId });
-      await em.delete(DiningTable, { restaurantId });
-
-      await em.save(
-        MenuItem,
-        snapshot.menu.map((item) =>
-          em.create(MenuItem, {
-            restaurantId,
-            clientId: item.id,
-            name: item.name,
-            nameUrdu: item.nameUrdu || null,
-            category: item.category,
-            salePrice: moneyStr(item.price),
-            stock: item.stock,
-            isActive: item.active,
-            imageDataUrl: item.imageDataUrl,
-          }),
-        ),
-      );
-
-      for (const order of snapshot.orders) {
-        const total = order.lines.reduce(
-          (sum, line) => sum + line.price * line.qty,
-          0,
-        );
-        const row = em.create(Order, {
-            restaurantId,
-            clientId: order.id,
-            tokenNumber: order.token,
-            businessDate: order.date,
-            type: order.type as OrderType,
-            tableId: order.tableId,
-            tableNumber: order.tableId,
-            clockTime: order.time,
-            status: order.status as OrderStatus,
-            paymentMethod: (order.payment ?? null) as PaymentMethod | null,
-            total: moneyStr(total),
-            paidAt: order.status === 'paid' ? new Date() : null,
-          });
-        const saved = await em.save(row);
-        if (order.lines.length > 0) {
-          await em.save(
-            OrderItem,
-            order.lines.map((line) =>
-              em.create(OrderItem, {
-                order: saved,
-                clientItemId: line.id,
-                name: line.name,
-                quantity: line.qty,
-                unitPrice: moneyStr(line.price),
-                lineTotal: moneyStr(line.price * line.qty),
-              }),
-            ),
-          );
-        }
-      }
-
-      if (snapshot.expenses.length > 0) {
-        await em.save(
-          Expense,
-          snapshot.expenses.map((row) =>
-            em.create(Expense, {
-              restaurantId,
-              clientId: row.id,
-              title: row.title,
-              category: row.category,
-              amount: moneyStr(row.amount),
-              date: row.date,
-              notes: row.notes || null,
-              staffId: row.staffId ?? null,
-            }),
-          ),
-        );
-      }
-
-      if (snapshot.staff.length > 0) {
-        await em.save(
-          WageStaff,
-          snapshot.staff.map((row) =>
-            em.create(WageStaff, {
-              restaurantId,
-              clientId: row.id,
-              name: row.name,
-              dailyWage: moneyStr(row.dailyWage),
-            }),
-          ),
-        );
-      }
-
-      if (snapshot.days.length > 0) {
-        await em.save(
-          BusinessDay,
-          snapshot.days.map((row) =>
-            em.create(BusinessDay, {
-              restaurantId,
-              date: row.date,
-              openedAt: new Date(row.openedAt),
-              pettyCash: moneyStr(row.pettyCash),
-              openedBy: row.openedBy,
-              closedAt: row.closedAt ? new Date(row.closedAt) : null,
-            }),
-          ),
-        );
-      }
-
-      const tablePieces = snapshot.layout.filter(
-        (piece) => piece.kind !== 'counter',
-      );
-      if (tablePieces.length > 0) {
-        await em.save(
-          DiningTable,
-          tablePieces.map((piece) =>
-            em.create(DiningTable, {
-              restaurantId,
-              tableNumber: piece.id,
-              isActive: true,
-            }),
-          ),
-        );
-      }
+      if (!restaurant) throw new NotFoundException('Restaurant not found.');
+      return applyTillChanges(em, restaurant, patch);
     });
-
-    return this.get(restaurantId);
   }
 
   private async seed(restaurant: Restaurant) {
@@ -354,6 +219,7 @@ export class TillService {
       time: order.clockTime || '',
       status,
       payment,
+      paidAt: order.paidAt ? order.paidAt.toISOString() : undefined,
       lines: (order.items ?? []).map((line) => ({
         id: line.clientItemId || '',
         name: line.name,

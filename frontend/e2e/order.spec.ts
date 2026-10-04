@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { categoryTab, mockApi, sampleTill, signIn, waitForTill } from "./helpers";
+import { categoryTab, mockApi, sampleTill, signIn, waitForTill, todayISO } from "./helpers";
 
 test.describe("order till", () => {
   test.beforeEach(async ({ page }) => {
@@ -111,7 +111,7 @@ test.describe("day start", () => {
     await waitForTill(page);
   });
 
-  test("keeps an overnight till on the open business day", async ({ page }) => {
+  test("dates new orders today while yesterday’s till remains open", async ({ page }) => {
     const opened = new Date();
     opened.setDate(opened.getDate() - 1);
     const month = String(opened.getMonth() + 1).padStart(2, "0");
@@ -132,6 +132,15 @@ test.describe("day start", () => {
     await signIn(page, "owner@test.com");
     await waitForTill(page);
     await expect(page.locator("header")).toContainText(businessDate);
+    const sent = page.waitForRequest(request => request.url().endsWith("/till/sync") && request.method() === "POST");
+    await page.getByRole("button", { name: /Chicken Karahi \(Half\)/ }).click();
+    await page.getByRole("button", { name: /^Pay/ }).click();
+    await page.getByRole("button", { name: /^Cash/ }).click();
+    const body = (await sent).postDataJSON();
+    const created = body.changes.find((change: any) => change.collection === "orders" && change.before === null);
+    expect(created.after.date).toBe(todayISO());
+    expect(body.orders).toBeUndefined();
+
   });
 
   test("End day closes the till until it is opened again", async ({ page }) => {

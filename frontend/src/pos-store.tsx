@@ -52,6 +52,8 @@ import {
   isBrowserOnline,
   markTillDirty,
   tillIsDirty,
+  readTillOutbox,
+  writeTillOutbox,
   type TillSyncState,
 } from "./till-sync";
 import {
@@ -62,8 +64,9 @@ import {
 } from "./menu-photos";
 import {
   CATALOG_OFFLINE_ERROR,
-  snapshotWithLocalTillWork,
 } from "./till-merge";
+
+import { applyOutbox, applyPatch, diffTill, sameRow, type TillPatch } from "./till-patch";
 
 type PlaceInput = {
   type: PosOrder["type"];
@@ -141,16 +144,6 @@ function localTill(restaurantId: string): TillSnapshot {
     layout: loadLayout(restaurantId),
     categories: loadCategories(restaurantId, loadMenu(restaurantId)),
   };
-}
-
-function tillHasWork(till: TillSnapshot) {
-  return (
-    till.orders.length > 0 ||
-    till.expenses.length > 0 ||
-    till.days.length > 0 ||
-    till.staff.length > 0 ||
-    till.menu.some((item) => item.stock > 0)
-  );
 }
 
 function cacheTill(restaurantId: string, till: TillSnapshot) {
@@ -356,6 +349,7 @@ export function PosProvider({
     error: null,
   });
   const [catalogOnline, setCatalogOnline] = useState(isBrowserOnline);
+  const syncBlockedRef = useRef(false);
   const lastPushedJson = useRef<string | null>(null);
   const restaurantIdRef = useRef(restaurantId);
   restaurantIdRef.current = restaurantId;
@@ -380,14 +374,21 @@ export function PosProvider({
   const pusherRef = useRef(
     createTillPusher({
       put: (body) =>
-        api("/till", {
-          method: "PUT",
+        api("/till/sync", {
+          method: "POST",
           body: JSON.stringify(body),
         }),
+      persist: (patch) => writeTillOutbox(restaurantIdRef.current, patch),
       onSaved: (till) => onSavedRef.current(till),
       onStatus: (state) => onStatusRef.current(state),
     }),
   );
+
+  useEffect(() => {
+    const pusher = pusherRef.current;
+    pusher.start();
+    return () => pusher.stop();
+  }, []);
 
   function normalizedTill(till: TillSnapshot): TillSnapshot {
     return {
@@ -442,58 +443,72 @@ export function PosProvider({
       const dirty = tillIsDirty(restaurantId);
       try {
         const remote = await api<TillSnapshot>("/till");
+        if (cancelled) return;
         local = {
           ...local,
           menu: applyMenuPhotos(local.menu, photos, remote.menu),
         };
-        const migrate = !tillHasWork(remote) && tillHasWork(local);
-        const keepTillWork =
-          dirty &&
-          (local.orders.length > 0 ||
-            local.expenses.length > 0 ||
-            local.days.length > 0);
-        if (migrate) {
-          markTillDirty(restaurantId);
-          await api("/till", {
-            method: "PUT",
-            body: JSON.stringify(local),
-          });
-          if (!cancelled) applyTill(local, true);
-          return;
+        const pending = readTillOutbox(restaurantId);
+        let recovered: TillSnapshot;
+        if (pending?.changes.length || pending?.submitted) {
+          // Retain the original before values: fetching remote must not bless a stale edit.
+          pusherRef.current.initialize(remote, pending);
+          recovered = applyOutbox(remote, pending);
+        } else if (dirty) {
+          // Legacy snapshots have no trustworthy base. Only migrate absent records;
+          // never overwrite or delete a server record based on an old local cache.
+          const additions: TillPatch = { changes: [] };
+          for (const collection of ["orders", "expenses", "days"] as const) {
+            for (const row of local[collection]) {
+              const key = collection === "days" ? (row as DayOpen).date : (row as PosOrder | ExpenseRow).id;
+              const existing = remote[collection].find((entry) => (collection === "days" ? (entry as DayOpen).date : (entry as PosOrder | ExpenseRow).id) === key);
+              if (existing && !sameRow(collection, existing, row)) {
+                throw new Error("Unsynced work from the previous app version needs review. Local records have been retained; they will not overwrite server records.");
+              }
+              if (!existing) additions.changes.push({ collection, key, before: null, after: row });
+            }
+          }
+          for (const item of local.menu) {
+            const existing = remote.menu.find((row) => row.id === item.id);
+            if (existing && item.stock !== existing.stock) {
+              throw new Error("Unsynced stock from the previous app version needs review. Local records have been retained.");
+            }
+          }
+          pusherRef.current.initialize(remote);
+          recovered = applyPatch(remote, additions);
+          recovered.nextToken = Math.max(remote.nextToken, local.nextToken);
+        } else {
+          pusherRef.current.initialize(remote);
+          recovered = remote;
         }
-        if (keepTillWork) {
-          const merged = snapshotWithLocalTillWork(local, remote);
-          markTillDirty(restaurantId);
-          await api("/till", {
-            method: "PUT",
-            body: JSON.stringify(merged),
-          });
-          if (!cancelled) applyTill(merged, true);
-          return;
+        if (!cancelled) {
+          const hasChanges = diffTill(remote, recovered).changes.length > 0 || Boolean(pending?.changes.length || pending?.submitted);
+          applyTill(recovered, !hasChanges);
         }
-        const recovered: TillSnapshot = {
-          ...remote,
-          menu: applyMenuPhotos(remote.menu, photos, local.menu),
-        };
-        const photosMatch =
-          JSON.stringify(recovered.menu.map((item) => item.imageDataUrl)) ===
-          JSON.stringify(remote.menu.map((item) => item.imageDataUrl));
-        if (!cancelled) applyTill(recovered, photosMatch);
       } catch (error) {
         if (cancelled) return;
+        const message = error instanceof Error && error.message.trim() ? error.message : "Could not reach the server";
+        // Only transport failures allow offline startup; migration/storage errors stop sync.
+        const needsReview = message.includes("needs review") || message.includes("offline queue");
+        syncBlockedRef.current = needsReview;
         applyTill(local, false);
-        if (dirty) {
-          markTillDirty(restaurantId);
-          pusherRef.current.enqueue(normalizedTill(local));
+        if (!needsReview) {
+          let pending: TillPatch | null = null;
+          try { pending = readTillOutbox(restaurantId); }
+          catch { syncBlockedRef.current = true; }
+          if (!syncBlockedRef.current) {
+            pusherRef.current.initialize(local, pending);
+            if (dirty && !pending) {
+              syncBlockedRef.current = true;
+              setSync({ status: "error", error: "Connect and reload to migrate unsynced work from the previous app version. Local records have been retained." });
+              return;
+            }
+            const recovered = pending ? applyOutbox(local, pending) : local;
+            applyTill(recovered, false);
+            if (pending?.changes.length || pending?.submitted) pusherRef.current.enqueue(recovered);
+          }
         }
-        const message =
-          error instanceof Error && error.message.trim()
-            ? error.message
-            : "Could not reach the server";
-        setSync({
-          status: isBrowserOnline() ? "error" : "queued",
-          error: isBrowserOnline() ? message : null,
-        });
+        setSync({ status: isBrowserOnline() || needsReview ? "error" : "queued", error: isBrowserOnline() || needsReview ? message : null });
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -505,7 +520,7 @@ export function PosProvider({
   }, [restaurantId]);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || syncBlockedRef.current) return;
     const till: TillSnapshot = {
       menu,
       orders,
@@ -612,15 +627,16 @@ export function PosProvider({
 
   function placeOrder(input: PlaceInput) {
     const order: PosOrder = {
-      id: `ord-${Date.now()}`,
+      id: `ord-${Date.now()}-${crypto.randomUUID()}`,
       token: nextToken,
       type: input.type,
       tableId: input.tableId,
       lines: input.lines,
       status: input.status,
-      date: openBusinessDay(days)?.date ?? todayISO(),
+      date: todayISO(),
       time: nowClock(),
       payment: input.payment,
+      paidAt: input.status === "paid" ? new Date().toISOString() : undefined,
     };
     setNextToken((value) => value + 1);
     setOrders((current) => [order, ...current]);
@@ -690,7 +706,7 @@ export function PosProvider({
     if (!target || target.status === "paid" || target.lines.length === 0) return;
     setOrders((current) =>
       current.map((order) =>
-        order.id === orderId ? { ...order, status: "paid", payment } : order,
+        order.id === orderId ? { ...order, status: "paid", payment, paidAt: new Date().toISOString() } : order,
       ),
     );
     if (settings.useInventory) {
@@ -709,7 +725,7 @@ export function PosProvider({
 
   function addExpense(row: Omit<ExpenseRow, "id">) {
     setExpenses((current) => [
-      { ...row, id: `exp-${Date.now()}` },
+      { ...row, id: `exp-${Date.now()}-${crypto.randomUUID()}` },
       ...current,
     ]);
   }
@@ -786,7 +802,7 @@ export function PosProvider({
       added = true;
       return [
         {
-          id: `exp-${Date.now()}`,
+          id: `exp-${Date.now()}-${crypto.randomUUID()}`,
           title: `${member.name} daily wage`,
           category: "Labor",
           amount: member.dailyWage,

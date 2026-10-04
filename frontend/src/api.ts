@@ -1,10 +1,14 @@
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+const API_URL = import.meta.env?.VITE_API_URL ?? "http://localhost:3000";
 export const AUTH_TOKEN_KEY = "bearer_token";
 
 function messageFromBody(body: { message?: unknown }) {
   if (typeof body.message === "string") return body.message;
   if (Array.isArray(body.message)) return body.message.join(" ");
   return null;
+}
+
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) { super(message); }
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -25,7 +29,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     const body = (await response.json().catch(() => ({}))) as {
       message?: unknown;
     };
-    throw new Error(messageFromBody(body) ?? response.statusText);
+    throw new ApiError(messageFromBody(body) ?? response.statusText, response.status);
   }
 
   if (response.status === 204) {

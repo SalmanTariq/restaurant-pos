@@ -1,3 +1,5 @@
+import { applyPatch, type TillPatch } from "../src/till-patch";
+import type { TillSnapshot } from "../src/pos-types";
 import { expect, type Page } from "@playwright/test";
 
 export const API = "http://localhost:3000";
@@ -230,7 +232,7 @@ export async function mockApi(
       return;
     }
 
-    if (path === "/till" && method === "PUT") {
+    if (path === "/till/sync" && method === "POST") {
       if (options.failTillPut) {
         await route.fulfill({
           status: 500,
@@ -239,8 +241,8 @@ export async function mockApi(
         });
         return;
       }
-      const body = request.postDataJSON() as Record<string, unknown>;
-      Object.assign(till, body);
+      const body = request.postDataJSON() as TillPatch;
+      Object.assign(till, applyPatch(till as TillSnapshot, body));
       await route.fulfill({
         status: 200,
         contentType: "application/json",

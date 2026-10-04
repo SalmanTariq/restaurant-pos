@@ -4,6 +4,7 @@ import { AUTH_TOKEN_KEY } from "./api";
 
 export function clearAuthToken() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem("pos_offline_identity");
 }
 
 export const authClient = createAuthClient({

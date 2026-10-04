@@ -30,6 +30,7 @@ export type TillOrder = {
   date: string;
   time: string;
   payment?: 'cash' | 'online';
+  paidAt?: string;
 };
 
 export type TillExpense = {
@@ -234,6 +235,7 @@ export function normalizeOrder(order: TillOrder, index: number): TillOrder {
     time: String(order?.time || ''),
     status,
     payment,
+    paidAt: order?.paidAt && Number.isFinite(Date.parse(order.paidAt)) ? new Date(order.paidAt).toISOString() : undefined,
     lines: Array.isArray(order?.lines)
       ? order.lines.map((line) => ({
           id: String(line?.id || ''),

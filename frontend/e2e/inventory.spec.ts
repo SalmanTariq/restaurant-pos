@@ -42,7 +42,7 @@ test.describe("inventory", () => {
     await page.getByLabel("Category", { exact: true }).selectOption("Karahi");
     await page.getByLabel("Sale price (Rs)").fill("380");
     const saved = page.waitForResponse((response) => {
-      if (!response.url().includes("/till") || response.request().method() !== "PUT") {
+      if (!response.url().includes("/till") || response.request().method() !== "POST") {
         return false;
       }
       return Boolean(response.request().postData()?.includes(name));

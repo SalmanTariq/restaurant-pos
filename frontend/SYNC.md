@@ -1,0 +1,23 @@
+# Offline till sync
+
+`GET /till` still bootstraps the restaurant's history for local reports. Routine writes use `POST /till/sync`, containing only changed records, with their previous and desired values. Unchanged historical orders never appear in a write. There is no schema migration for this change.
+
+The client keeps a tenant-scoped durable outbox in localStorage, in addition to the existing cached till and IndexedDB menu photos. It writes the outbox before sending a request. Edits made during a request are kept separately from the submitted patch so that a lost response can be retried before later edits. Successful acknowledgements advance the in-memory baseline and remove the acknowledged work from the outbox. Offline work survives reload and is sent when connectivity returns. A cached signed-in identity permits offline startup until the original session expires, and is cleared on sign-out; each server sync still requires valid authentication. A device storage failure shows an error and prevents sending an operation that cannot be retained locally.
+
+The server locks the restaurant row during each transaction and compares each changed record against its supplied previous value. Already-applied values are acknowledged without another write. An unexpected current value returns HTTP 409 and rolls back the whole batch. Records not mentioned in the batch are untouched. Deletion is explicit and scoped to one named record. Existing primary IDs, creation timestamps and payment timestamps are preserved. New order IDs include a timestamp and UUID; their timestamp records offline creation time. New payment events carry the actual device event time, rather than reconnect time.
+
+Orders use the device's current local date, independently of the open business day's date. Device clock and timezone must therefore be correct. Existing historical dates and overwritten timestamps are not repaired by this change.
+
+## Release and recovery
+
+Deploy the backend and frontend together, then reload all tills. The backend rejects the old destructive `PUT /till` protocol, including stale service-worker clients, and instructs them to reload. No production deployment or historical data repair is included here.
+
+Before upgrading, sync tills running the old app while they still have connectivity. Old dirty caches have no baseline. The new app may migrate absent tickets, expenses and business days, but refuses to overwrite differing server records or stock. Those caches are retained and require review. An old dirty cache first opened offline is blocked from syncing until an online reload can perform that review.
+
+Concurrent edits to the same record and offline duplicate token numbers are retained as conflicts rather than silently merged. The current UI displays the conflict and retains the outbox; resolving such conflicts requires operator/developer review. There is no automatic conflict resolver, multi-device token allocation, server event log, or paginated history API in this change. Different records can sync independently; simultaneous stock changes to the same menu item require review. The local cache remains a browser/device store, not an independent backup; clearing browser data removes unsynced work.
+
+## Verification
+
+`e2e/till-sync.spec.ts` checks small payloads with a thousand historical orders, explicit deletion, offline coalescing, reload recovery, lost acknowledgements with later edits, conflict retention, and storage failures. Browser order tests check current-date orders under a stale open business day. Backend incremental persistence tests check timestamp/ID preservation, replay, stale-edit rejection, new offline orders, scoped deletion, duplicate tokens and rejection of the legacy protocol. Backend unit tests use an EntityManager mock. `node scripts/verify-mysql-sync.cjs` verifies persistence, rollback, locking, concurrent conflicts and scoped deletion against a temporary local MySQL database, then removes that database. It uses the local Docker test administrator by default; set `MYSQL_TEST_ADMIN_USER`, `MYSQL_TEST_ADMIN_PASSWORD`, `MYSQL_HOST` and `MYSQL_PORT` as needed. Run this against a development/test server.
+
+`npm run build` followed by `npx playwright test --config playwright.offline.config.ts` tests the production service worker with the browser network fully disabled, including offline authentication, payment, reload and reconnect. The ordinary browser suite also verifies failed API requests and queue recovery.
