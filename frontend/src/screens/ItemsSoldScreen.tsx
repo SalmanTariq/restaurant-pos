@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { inDateTimeRange, rupees, todayISO, START_OF_DAY, END_OF_DAY } from "../demo-data";
+import { inDateTimeRange, rupees, todayISO, START_OF_DAY, END_OF_DAY, DEFAULT_REPORT_START_TIME, DEFAULT_REPORT_END_TIME } from "../demo-data";
 import {
   downloadReport,
   fileStamp,
@@ -24,8 +24,8 @@ export function ItemsSoldScreen() {
   const today = todayISO();
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
-  const [fromTime, setFromTime] = useState(START_OF_DAY);
-  const [toTime, setToTime] = useState(END_OF_DAY);
+  const [fromTime, setFromTime] = useState(DEFAULT_REPORT_START_TIME);
+  const [toTime, setToTime] = useState(DEFAULT_REPORT_END_TIME);
   const [query, setQuery] = useState("");
 
   const rows = useMemo(() => {

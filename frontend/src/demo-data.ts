@@ -236,16 +236,20 @@ export function daysAgoISO(days: number) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-/** Default report window: yesterday through today. */
+/** Calendar boundaries used for date-only records and whole-day shortcuts. */
 export const START_OF_DAY = "00:00";
 export const END_OF_DAY = "23:59";
 
+export const DEFAULT_REPORT_START_TIME = "10:00";
+export const DEFAULT_REPORT_END_TIME = "03:00";
+
+/** Default report dates: yesterday through today. */
 export function defaultReportRange() {
   return {
     from: daysAgoISO(1),
     to: todayISO(),
-    fromTime: START_OF_DAY,
-    toTime: END_OF_DAY,
+    fromTime: DEFAULT_REPORT_START_TIME,
+    toTime: DEFAULT_REPORT_END_TIME,
   };
 }
 
