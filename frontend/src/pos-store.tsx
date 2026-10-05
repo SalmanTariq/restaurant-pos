@@ -66,7 +66,9 @@ import {
   CATALOG_OFFLINE_ERROR,
 } from "./till-merge";
 
-import { applyOutbox, applyPatch, diffTill, sameRow, type TillPatch } from "./till-patch";
+import { applyOutbox, diffTill, type TillPatch } from "./till-patch";
+
+import { migrateLegacyTill } from "./till-legacy-migration";
 
 type PlaceInput = {
   type: PosOrder["type"];
@@ -455,28 +457,8 @@ export function PosProvider({
           pusherRef.current.initialize(remote, pending);
           recovered = applyOutbox(remote, pending);
         } else if (dirty) {
-          // Legacy snapshots have no trustworthy base. Only migrate absent records;
-          // never overwrite or delete a server record based on an old local cache.
-          const additions: TillPatch = { changes: [] };
-          for (const collection of ["orders", "expenses", "days"] as const) {
-            for (const row of local[collection]) {
-              const key = collection === "days" ? (row as DayOpen).date : (row as PosOrder | ExpenseRow).id;
-              const existing = remote[collection].find((entry) => (collection === "days" ? (entry as DayOpen).date : (entry as PosOrder | ExpenseRow).id) === key);
-              if (existing && !sameRow(collection, existing, row)) {
-                throw new Error("Unsynced work from the previous app version needs review. Local records have been retained; they will not overwrite server records.");
-              }
-              if (!existing) additions.changes.push({ collection, key, before: null, after: row });
-            }
-          }
-          for (const item of local.menu) {
-            const existing = remote.menu.find((row) => row.id === item.id);
-            if (existing && item.stock !== existing.stock) {
-              throw new Error("Unsynced stock from the previous app version needs review. Local records have been retained.");
-            }
-          }
+          recovered = migrateLegacyTill(local, remote);
           pusherRef.current.initialize(remote);
-          recovered = applyPatch(remote, additions);
-          recovered.nextToken = Math.max(remote.nextToken, local.nextToken);
         } else {
           pusherRef.current.initialize(remote);
           recovered = remote;
@@ -520,7 +502,7 @@ export function PosProvider({
   }, [restaurantId]);
 
   useEffect(() => {
-    if (!ready || syncBlockedRef.current) return;
+    if (!ready) return;
     const till: TillSnapshot = {
       menu,
       orders,
@@ -533,6 +515,8 @@ export function PosProvider({
       categories,
     };
     cacheTill(restaurantId, till);
+    // A migration conflict stops network writes, not local persistence.
+    if (syncBlockedRef.current) return;
     const json = JSON.stringify(till);
     if (json === lastPushedJson.current) return;
     markTillDirty(restaurantId);
