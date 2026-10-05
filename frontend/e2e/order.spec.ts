@@ -3,6 +3,9 @@ import { categoryTab, mockApi, sampleTill, signIn, waitForTill, todayISO } from 
 
 test.describe("order till", () => {
   test.beforeEach(async ({ page }) => {
+    const afternoon = new Date();
+    afternoon.setHours(14, 0, 0, 0);
+    await page.clock.setFixedTime(afternoon);
     await mockApi(page);
     await signIn(page, "owner@test.com");
     await waitForTill(page);

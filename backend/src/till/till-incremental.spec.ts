@@ -22,6 +22,7 @@ function setup(existing = true) {
   const restaurant = { id: 'shop', nextToken: 10 } as Restaurant;
   const em = {
     findOne: jest.fn(async (entity: any) => entity === Order ? order : null),
+    find: jest.fn(async () => [] as any[]),
     create: jest.fn((_entity: any, values: any) => ({ ...values })),
     save: jest.fn(async (_entity: any, values?: any) => { if (values && !values.id) values.id = 456; return values || _entity; }),
     delete: jest.fn(async () => ({})), remove: jest.fn(async () => ({})),
@@ -78,9 +79,33 @@ describe('incremental till persistence', () => {
 
   it('does not accept a duplicate token from another terminal', async () => {
     const { em, restaurant } = setup(false);
-    em.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce({ clientId: 'someone-else' });
+    em.find.mockResolvedValueOnce([{ clientId: 'someone-else', businessDate: wire.date, clockTime: wire.time }]);
     await expect(applyTillChanges(em as unknown as EntityManager, restaurant, { changes: [
       { collection: 'orders', key: wire.id, before: null, after: wire },
+    ] })).rejects.toBeInstanceOf(ConflictException);
+    expect(em.save).not.toHaveBeenCalled();
+  });
+
+  it('allows token 1 again at 10am without changing overnight order records', async () => {
+    const { em, restaurant } = setup(false);
+    const overnight = { clientId: 'overnight', businessDate: '2026-10-06', clockTime: '1:00 AM' };
+    em.find.mockResolvedValueOnce([overnight]);
+    const after = { ...wire, id: 'new-day', date: '2026-10-06', time: '10:00 AM', token: 1 };
+    await applyTillChanges(em as unknown as EntityManager, restaurant, { changes: [
+      { collection: 'orders', key: after.id, before: null, after },
+    ] });
+    const saved = em.save.mock.calls.find(([entity]) => entity === Order)![1];
+    expect(saved.tokenDay).toBe('2026-10-06');
+    expect(saved.businessDate).toBe('2026-10-06');
+    expect(overnight).toEqual({ clientId: 'overnight', businessDate: '2026-10-06', clockTime: '1:00 AM' });
+  });
+
+  it('rejects duplicate business-day tokens across midnight', async () => {
+    const { em, restaurant } = setup(false);
+    em.find.mockResolvedValueOnce([{ clientId: 'evening', businessDate: '2026-10-05', clockTime: '11:00 PM' }]);
+    const after = { ...wire, id: 'overnight', date: '2026-10-06', time: '1:00 AM', token: 1 };
+    await expect(applyTillChanges(em as unknown as EntityManager, restaurant, { changes: [
+      { collection: 'orders', key: after.id, before: null, after },
     ] })).rejects.toBeInstanceOf(ConflictException);
     expect(em.save).not.toHaveBeenCalled();
   });

@@ -4,6 +4,7 @@ import { EnsurePosSchema1730000000000 } from './migrations/1730000000000-ensure-
 import { AddMissingTillColumns1730000000001 } from './migrations/1730000000001-add-missing-till-columns';
 import { AddBusinessDayClosedAt1730000000002 } from './migrations/1730000000002-add-business-day-closed-at';
 import { AddRestaurantUseTables1730000000003 } from './migrations/1730000000003-add-restaurant-use-tables';
+import { AddOrderTokenDay1730000000004 } from './migrations/1730000000004-add-order-token-day';
 import { mysqlEnv } from './mysql-env';
 
 export const POS_MIGRATIONS = [
@@ -11,6 +12,7 @@ export const POS_MIGRATIONS = [
   AddMissingTillColumns1730000000001,
   AddBusinessDayClosedAt1730000000002,
   AddRestaurantUseTables1730000000003,
+  AddOrderTokenDay1730000000004,
 ];
 
 export function posTypeOrmOptions() {

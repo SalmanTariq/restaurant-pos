@@ -14,7 +14,8 @@ import { OrderStatus, OrderType, PaymentMethod } from './enums';
 import { MenuItem } from './menu-item.entity';
 
 @Entity('orders')
-@Index(['restaurantId', 'businessDate', 'tokenNumber'], { unique: true })
+@Index(['restaurantId', 'tokenDay', 'tokenNumber'], { unique: true })
+@Index(['restaurantId', 'businessDate', 'tokenNumber'])
 @Index(['restaurantId', 'clientId'], { unique: true })
 export class Order {
   @PrimaryGeneratedColumn()
@@ -31,6 +32,9 @@ export class Order {
 
   @Column({ type: 'date' })
   businessDate: string;
+
+  @Column({ type: 'date', nullable: true })
+  tokenDay: string | null;
 
   @Column({ type: 'varchar' })
   type: OrderType;

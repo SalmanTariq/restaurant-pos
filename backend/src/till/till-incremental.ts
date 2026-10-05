@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import { EntityManager } from 'typeorm';
+import { EntityManager, In } from 'typeorm';
 import { BusinessDay } from '../database/entities/business-day.entity';
 import { Expense } from '../database/entities/expense.entity';
 import { MenuItem } from '../database/entities/menu-item.entity';
@@ -9,6 +9,8 @@ import { WageStaff } from '../database/entities/wage-staff.entity';
 import { asDate, money, moneyStr, normalizeTillSnapshot, readLayout } from './till-snapshot';
 import { mergeMenuCategories } from './menu-categories';
 import { rowCollections, rowKey, sameRow, stable, TillPatch } from './till-patch';
+
+import { businessDayDate, followingDate } from './business-day';
 
 const entities: Record<string, any> = { menu: MenuItem, orders: Order, expenses: Expense, staff: WageStaff, days: BusinessDay };
 
@@ -92,9 +94,13 @@ export async function applyTillChanges(em: EntityManager, restaurant: Restaurant
       case 'days': Object.assign(target, { date: key, openedAt: new Date(after.openedAt), pettyCash: moneyStr(after.pettyCash), openedBy: after.openedBy,
         closedAt: after.closedAt ? new Date(after.closedAt) : null }); break;
       case 'orders': {
-        const occupied = await em.findOne(Order, { where: { restaurantId: restaurant.id, businessDate: after.date, tokenNumber: after.token } });
-        if (occupied && occupied.clientId !== key) throw new ConflictException(`Token ${after.token} was used by another till. Your local order is retained.`);
-        Object.assign(target, { clientId: key, tokenNumber: after.token, businessDate: after.date, type: after.type, tableId: after.tableId,
+        const tokenDay = businessDayDate(after.date, after.time);
+        const candidates = await em.find(Order, { where: { restaurantId: restaurant.id,
+          businessDate: In([tokenDay, followingDate(tokenDay)]), tokenNumber: after.token } });
+        const occupied = candidates.find(candidate => candidate.clientId !== key &&
+          businessDayDate(asDate(candidate.businessDate), candidate.clockTime) === tokenDay);
+        if (occupied) throw new ConflictException(`Token ${after.token} was used by another till. Your local order is retained.`);
+        Object.assign(target, { clientId: key, tokenNumber: after.token, businessDate: after.date, tokenDay, type: after.type, tableId: after.tableId,
           tableNumber: after.tableId, clockTime: after.time, status: after.status, paymentMethod: after.payment || null,
           total: moneyStr(after.lines.reduce((sum: number, line: any) => sum + line.price * line.qty, 0)),
           paidAt: after.status === 'paid' ? (row?.paidAt || (after.paidAt ? new Date(after.paidAt) : new Date())) : null });

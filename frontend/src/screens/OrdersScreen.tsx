@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { lineTotal, rupees, stockLabel } from "../demo-data";
+import { inDateTimeRange, lineTotal, rupees, stockLabel } from "../demo-data";
+import { businessDayRange } from "../business-day";
+import { DateRangeFields } from "./DateRangeFields";
 import { groupMenuSections, MenuSectionList, useMenuScroll } from "../menu-board";
 import { usePos } from "../pos-store";
 import type { PosOrder } from "../pos-types";
@@ -34,16 +36,20 @@ export function OrdersScreen({
     settings,
     categories,
   } = usePos();
+  const [range, setRange] = useState(() => businessDayRange());
+  const matchesRange = (order: PosOrder) => inDateTimeRange(order.date, order.time,
+    range.from, range.fromTime, range.to, range.toTime);
+  const openOrders = activeOrders.filter(matchesRange);
   const paidOrders = useMemo(
     () =>
       orders
-        .filter((order) => order.status === "paid")
+        .filter((order) => order.status === "paid" && matchesRange(order))
         .slice()
         .sort((a, b) => {
           if (a.date === b.date) return b.token - a.token;
           return a.date < b.date ? 1 : -1;
         }),
-    [orders],
+    [orders, range],
   );
   const [list, setList] = useState<"open" | "paid">("open");
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -64,12 +70,13 @@ export function OrdersScreen({
     [sections],
   );
   const { scrollerRef, active, go } = useMenuScroll(sectionNames);
-  const visible = list === "open" ? activeOrders : paidOrders;
+  const visible = list === "open" ? openOrders : paidOrders;
 
   useEffect(() => {
     if (!focusOrderId) return;
     const focused = orders.find((order) => order.id === focusOrderId);
     if (!focused) return;
+    if (!matchesRange(focused)) setRange({ from: focused.date, to: focused.date, fromTime: "00:00", toTime: "23:59" });
     setList(focused.status === "paid" ? "paid" : "open");
     setSelectedId(focusOrderId);
   }, [focusOrderId, orders]);
@@ -79,7 +86,7 @@ export function OrdersScreen({
   const total = selected ? lineTotal(selected.lines) : 0;
   const past = selected?.status === "paid";
 
-  if (activeOrders.length === 0 && paidOrders.length === 0) {
+  if (orders.length === 0) {
     return (
       <main className="page">
         <h1>Orders</h1>
@@ -91,6 +98,17 @@ export function OrdersScreen({
   return (
     <div className="orders-layout">
       <aside className="order-rail" aria-label="Orders">
+        <div className="order-date-filter">
+          <DateRangeFields {...range}
+            onFrom={(from) => setRange(current => ({ ...current, from }))}
+            onTo={(to) => setRange(current => ({ ...current, to }))}
+            onFromTime={(fromTime) => setRange(current => ({ ...current, fromTime }))}
+            onToTime={(toTime) => setRange(current => ({ ...current, toTime }))}
+          />
+          <button type="button" className="ghost-btn" onClick={() => setRange(businessDayRange())}>
+            Today’s business day
+          </button>
+        </div>
         <div className="order-rail-tabs" role="tablist" aria-label="Order lists">
           <button
             type="button"
@@ -99,11 +117,11 @@ export function OrdersScreen({
             className={list === "open" ? "rail-tab is-active" : "rail-tab"}
             onClick={() => {
               setList("open");
-              setSelectedId(activeOrders[0]?.id ?? null);
+              setSelectedId(openOrders[0]?.id ?? null);
             }}
           >
             Open
-            <em>{activeOrders.length}</em>
+            <em>{openOrders.length}</em>
           </button>
           <button
             type="button"
@@ -122,8 +140,8 @@ export function OrdersScreen({
         {visible.length === 0 ? (
           <p className="rail-empty">
             {list === "open"
-              ? "No open tickets."
-              : "No paid orders stored on this till."}
+              ? "No open tickets in this range."
+              : "No paid orders in this range."}
           </p>
         ) : (
           visible.map((order) => (
@@ -169,7 +187,7 @@ export function OrdersScreen({
             </div>
           </div>
 
-          <div className={past ? "desk-grid is-past" : "desk-grid"}>
+          <div className="desk-grid">
             <div className="ticket desk-ticket">
               <div className="ticket-head">
                 <div>
@@ -187,18 +205,14 @@ export function OrdersScreen({
                     {selected.lines.map((line) => (
                       <li key={line.id}>
                         <span>{line.name}</span>
-                        {past ? (
-                          <strong>{line.qty}</strong>
-                        ) : (
-                          <QtyStepper
-                            name={line.name}
-                            value={line.qty}
-                            max={line.qty + available(line.id)}
-                            onChange={(qty) =>
-                              setOrderItemQty(selected.id, line.id, qty)
-                            }
-                          />
-                        )}
+                        <QtyStepper
+                          name={line.name}
+                          value={line.qty}
+                          max={line.qty + available(line.id)}
+                          onChange={(qty) =>
+                            setOrderItemQty(selected.id, line.id, qty)
+                          }
+                        />
                         <em>{rupees(line.price * line.qty)}</em>
                       </li>
                     ))}
@@ -286,51 +300,40 @@ export function OrdersScreen({
               </div>
             </div>
 
-            {past ? (
-              <div className="past-note">
-                <h2>Guest copy</h2>
-                <p>
-                  This order is closed. Print the kitchen token or guest bill
-                  again if they need another copy. Change the date range on Sales
-                  to find older tickets.
-                </p>
+            <div className="desk-menu" ref={scrollerRef}>
+              <div className="type-toggle compact-cats" role="tablist" aria-label="Categories">
+                {categories.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className={active === name ? "cat-chip is-active" : "cat-chip"}
+                    data-cat-nav={name}
+                    onClick={() => go(name)}
+                  >
+                    {name}
+                  </button>
+                ))}
               </div>
-            ) : (
-              <div className="desk-menu" ref={scrollerRef}>
-                <div className="type-toggle compact-cats" role="tablist" aria-label="Categories">
-                  {categories.map((name) => (
-                    <button
-                      key={name}
-                      type="button"
-                      className={active === name ? "cat-chip is-active" : "cat-chip"}
-                      data-cat-nav={name}
-                      onClick={() => go(name)}
-                    >
-                      {name}
-                    </button>
-                  ))}
-                </div>
-                <MenuSectionList
-                  sections={sections}
-                  gridClass="item-grid photo-board"
-                  renderItem={(item) => {
-                    const left = available(item.id);
-                    const soldOut = settings.useInventory && left <= 0;
-                    return (
-                      <MenuItemCard
-                        key={item.id}
-                        item={item}
-                        soldOut={soldOut}
-                        prominent
-                        stockLeft={left}
-                        stockText={settings.useInventory ? stockLabel(left) : null}
-                        onAdd={() => addItemToOrder(selected.id, item)}
-                      />
-                    );
-                  }}
-                />
-              </div>
-            )}
+              <MenuSectionList
+                sections={sections}
+                gridClass="item-grid photo-board"
+                renderItem={(item) => {
+                  const left = available(item.id);
+                  const soldOut = settings.useInventory && left <= 0;
+                  return (
+                    <MenuItemCard
+                      key={item.id}
+                      item={item}
+                      soldOut={soldOut}
+                      prominent
+                      stockLeft={left}
+                      stockText={settings.useInventory ? stockLabel(left) : null}
+                      onAdd={() => addItemToOrder(selected.id, item)}
+                    />
+                  );
+                }}
+              />
+            </div>
           </div>
         </section>
       )}

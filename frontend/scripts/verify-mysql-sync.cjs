@@ -8,6 +8,7 @@ const { Restaurant } = require(root + '/src/database/entities/restaurant.entity'
 const { Order } = require(root + '/src/database/entities/order.entity');
 const { MenuItem } = require(root + '/src/database/entities/menu-item.entity');
 const { applyTillChanges } = require(root + '/src/till/till-incremental');
+const { AddOrderTokenDay1730000000004 } = require(root + '/src/database/migrations/1730000000004-add-order-token-day');
 (async () => {
   const db = 'pos_sync_regression_' + process.pid;
   const admin = await mysql.createConnection({ host: process.env.MYSQL_HOST || '127.0.0.1', port: Number(process.env.MYSQL_PORT || 3306), user: process.env.MYSQL_TEST_ADMIN_USER || 'root', password: process.env.MYSQL_TEST_ADMIN_PASSWORD || 'pos', connectTimeout: 3000 });
@@ -51,7 +52,35 @@ const { applyTillChanges } = require(root + '/src/till/till-incremental');
     assert.equal(changed.items.length, 1); assert.equal(changed.items[0].quantity, 3);
     await sync([{ ...insert, before: { ...edited, lines: [{ ...wire.lines[0], qty: 3 }] }, after: null }]);
     assert.equal(await ds.getRepository(Order).count(), 0);
-    console.log('Live MySQL regression passed: insert, replay, timestamp preservation, rollback, concurrent conflict, line edit and scoped deletion.');
+    // Exercise the production migration from calendar-day uniqueness with a
+    // real retained historical order, rather than only a synchronized schema.
+    const runner = ds.createQueryRunner();
+    await runner.connect();
+    try {
+      const table = await runner.getTable('orders');
+      const dailyIndex = table.indices.find(index => index.columnNames.includes('tokenDay'));
+      await runner.dropIndex('orders', dailyIndex);
+      await runner.dropColumn('orders', 'tokenDay');
+      await runner.query('ALTER TABLE `orders` ADD UNIQUE INDEX `legacy_calendar_token` (`restaurantId`, `businessDate`, `tokenNumber`)');
+      await runner.query('INSERT INTO `orders` (`restaurantId`, `clientId`, `tokenNumber`, `businessDate`, `type`, `clockTime`, `status`, `total`) VALUES (?, ?, 1, ?, ?, ?, ?, 50)',
+        [restaurant.id, 'legacy-overnight', '2026-10-06', 'takeaway', '1:00 AM', 'paid']);
+      const [beforeMigration] = await runner.query('SELECT * FROM `orders` WHERE `clientId` = ?', ['legacy-overnight']);
+      await new AddOrderTokenDay1730000000004().up(runner);
+      const [afterMigration] = await runner.query('SELECT * FROM `orders` WHERE `clientId` = ?', ['legacy-overnight']);
+      const { tokenDay, ...retained } = afterMigration;
+      assert.equal(tokenDay, null);
+      assert.deepEqual(retained, beforeMigration, 'Migration must retain every historical order field');
+      // Migration is safe to retry after an interrupted deployment.
+      await new AddOrderTokenDay1730000000004().up(runner);
+      const morning = { ...wire, id: 'new-business-day', date: '2026-10-06', time: '10:00 AM' };
+      await sync([{ collection: 'orders', key: morning.id, before: null, after: morning }]);
+      const nextOvernight = { ...wire, id: 'next-overnight', date: '2026-10-07', time: '1:00 AM' };
+      await assert.rejects(sync([{ collection: 'orders', key: nextOvernight.id, before: null, after: nextOvernight }]), /Token 1 was used/);
+      assert.equal(await ds.getRepository(Order).count(), 2);
+    } finally {
+      await runner.release();
+    }
+    console.log('Live MySQL regression passed: sync, conflict rollback, business-day tokens, and migration preserving historical orders.');
   } finally {
     if (ds?.isInitialized) await ds.destroy();
     try { await admin.query('DROP DATABASE IF EXISTS `' + db + '`'); } finally { await admin.end(); }

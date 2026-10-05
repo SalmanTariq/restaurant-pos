@@ -164,6 +164,9 @@ test('all today’s legacy orders survive failed uploads and repeated reloads be
 });
 
 test('a migration conflict still persists new orders locally', async ({ page }) => {
+  const afternoon = new Date();
+  afternoon.setHours(14, 0, 0, 0);
+  await page.clock.setFixedTime(afternoon);
   const remote = snapshot(), local = structuredClone(remote);
   local.orders[0].lines[0].qty += 1;
   await mockApi(page, { till: remote as unknown as Record<string, unknown> });

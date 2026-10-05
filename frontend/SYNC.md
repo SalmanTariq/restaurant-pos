@@ -8,6 +8,10 @@ The server locks the restaurant row during each transaction and compares each ch
 
 Orders use the device's current local date, independently of the open business day's date. Device clock and timezone must therefore be correct. Existing historical dates and overwritten timestamps are not repaired by this change.
 
+Orders default to the current business-day window: 10:00 on the starting date through 03:00 the following date. Before 10:00, the starting date is yesterday. The date/time filter changes only visibility; all cached and queued orders remain retained. Token numbers reset at 10:00 and continue across midnight. The local cache stores the counter's business-day date so refreshing or deleting the latest ticket does not reset the current counter. Older global counters are replaced by the next token derived from that business day's retained orders.
+
+Deploy the backend before the frontend for this release. Backend migration `1730000000004` adds a nullable `orders.tokenDay` and replaces calendar-day token uniqueness with business-day uniqueness. Historical rows retain all existing values; their new column stays null until an edit. Sync checks both calendar dates in the business day under the existing restaurant transaction lock, including legacy records. The migration runs automatically on production backend startup, or through `npm run migrate`; it does not delete orders or renumber existing tokens.
+
 ## Release and recovery
 
 Deploy the backend and frontend together, then reload all tills. The backend rejects the old destructive `PUT /till` protocol, including stale service-worker clients, and instructs them to reload. No production deployment or historical data repair is included here.

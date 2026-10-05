@@ -69,6 +69,7 @@ import {
 import { applyOutbox, diffTill, type TillPatch } from "./till-patch";
 
 import { migrateLegacyTill } from "./till-legacy-migration";
+import { currentBusinessDay, nextTokenForDay } from "./business-day";
 
 type PlaceInput = {
   type: PosOrder["type"];
@@ -151,7 +152,7 @@ function localTill(restaurantId: string): TillSnapshot {
 function cacheTill(restaurantId: string, till: TillSnapshot) {
   void saveMenuPhotos(restaurantId, till.menu);
   const writes: Array<[string, string]> = [
-    [ORDERS_KEY, JSON.stringify({ orders: till.orders, nextToken: till.nextToken })],
+    [ORDERS_KEY, JSON.stringify({ orders: till.orders, nextToken: till.nextToken, nextTokenDay: currentBusinessDay() })],
     [BOOKS_KEY, JSON.stringify({ expenses: till.expenses, staff: till.staff })],
     [DAYS_KEY, JSON.stringify(till.days)],
     [MENU_KEY, JSON.stringify(menuWithoutPhotos(till.menu))],
@@ -229,11 +230,11 @@ function normalizePayment(value: string | undefined): PaymentMethod | undefined 
 
 function loadSavedOrders(
   restaurantId: string,
-): { orders: PosOrder[]; nextToken: number } | null {
+): { orders: PosOrder[]; nextToken: number; nextTokenDay?: string } | null {
   try {
     const raw = readTenantItem(ORDERS_KEY, restaurantId);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { orders?: PosOrder[]; nextToken?: number };
+    const parsed = JSON.parse(raw) as { orders?: PosOrder[]; nextToken?: number; nextTokenDay?: string };
     if (!Array.isArray(parsed.orders)) return null;
     const fallbackDate = todayISO();
     return {
@@ -244,6 +245,7 @@ function loadSavedOrders(
       })),
       nextToken:
         typeof parsed.nextToken === "number" ? parsed.nextToken : NEXT_TOKEN,
+      nextTokenDay: parsed.nextTokenDay,
     };
   } catch {
     return null;
@@ -326,9 +328,19 @@ export function PosProvider({
   const [orders, setOrders] = useState<PosOrder[]>(
     () => loadSavedOrders(restaurantId)?.orders ?? [],
   );
-  const [nextToken, setNextToken] = useState(
-    () => loadSavedOrders(restaurantId)?.nextToken ?? 1,
-  );
+  const tokenDayRef = useRef(currentBusinessDay());
+  const [storedNextToken, setNextToken] = useState(() => {
+    const saved = loadSavedOrders(restaurantId);
+    return Math.max(nextTokenForDay(saved?.orders ?? []),
+      saved?.nextTokenDay === currentBusinessDay() ? saved.nextToken : 1);
+  });
+  const [businessDay, setBusinessDay] = useState(currentBusinessDay);
+  useEffect(() => {
+    const timer = window.setInterval(() => setBusinessDay(currentBusinessDay()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const nextToken = Math.max(nextTokenForDay(orders, businessDay),
+    tokenDayRef.current === businessDay ? storedNextToken : 1);
   const [layout, setLayout] = useState<TableLayout[]>(() => {
     const saved = loadLayout(restaurantId);
     return saved.length > 0 ? saved : DEFAULT_FLOOR;
@@ -407,6 +419,10 @@ export function PosProvider({
     const next = normalizedTill(till);
     setMenu(next.menu);
     setOrders(next.orders);
+    const saved = loadSavedOrders(restaurantId);
+    const day = currentBusinessDay();
+    tokenDayRef.current = day;
+    next.nextToken = Math.max(nextTokenForDay(next.orders, day), saved?.nextTokenDay === day ? saved.nextToken : 1);
     setNextToken(next.nextToken);
     setLayout(next.layout);
     setExpenses(next.expenses);
@@ -610,9 +626,11 @@ export function PosProvider({
   }
 
   function placeOrder(input: PlaceInput) {
+    const day = currentBusinessDay();
+    const token = Math.max(nextTokenForDay(orders, day), tokenDayRef.current === day ? storedNextToken : 1);
     const order: PosOrder = {
       id: `ord-${Date.now()}-${crypto.randomUUID()}`,
-      token: nextToken,
+      token,
       type: input.type,
       tableId: input.tableId,
       lines: input.lines,
@@ -622,7 +640,9 @@ export function PosProvider({
       payment: input.payment,
       paidAt: input.status === "paid" ? new Date().toISOString() : undefined,
     };
-    setNextToken((value) => value + 1);
+    tokenDayRef.current = day;
+    setBusinessDay(day);
+    setNextToken(token + 1);
     setOrders((current) => [order, ...current]);
     if (input.status === "paid" && settings.useInventory) {
       setMenu((current) => consumeStock(current, input.lines));
@@ -631,10 +651,12 @@ export function PosProvider({
   }
 
   function addItemToOrder(orderId: string, item: MenuItem) {
+    const target = orders.find((order) => order.id === orderId);
+    if (!target) return;
     if (available(item.id) <= 0) return;
     setOrders((current) =>
       current.map((order) => {
-        if (order.id !== orderId || order.status === "paid") return order;
+        if (order.id !== orderId) return order;
         const existing = order.lines.find((line) => line.id === item.id);
         const lines = existing
           ? order.lines.map((line) =>
@@ -644,6 +666,9 @@ export function PosProvider({
         return { ...order, lines };
       }),
     );
+    if (target.status === "paid" && settings.useInventory) {
+      setMenu((current) => consumeStock(current, [{ id: item.id, name: item.name, price: item.price, qty: 1 }]));
+    }
   }
 
   function bumpOrderItem(orderId: string, itemId: string, delta: number) {
@@ -655,7 +680,7 @@ export function PosProvider({
 
   function setOrderItemQty(orderId: string, itemId: string, qty: number) {
     const order = orders.find((entry) => entry.id === orderId);
-    if (!order || order.status === "paid") return;
+    if (!order) return;
     const line = order.lines.find((entry) => entry.id === itemId);
     if (!line) return;
     const n = Math.floor(qty);
@@ -663,7 +688,7 @@ export function PosProvider({
     const nextQty = !Number.isFinite(n) || n <= 0 ? 0 : Math.min(n, max);
     setOrders((current) =>
       current.map((entry) => {
-        if (entry.id !== orderId || entry.status === "paid") return entry;
+        if (entry.id !== orderId) return entry;
         const lines =
           nextQty <= 0
             ? entry.lines.filter((row) => row.id !== itemId)
@@ -673,6 +698,11 @@ export function PosProvider({
         return { ...entry, lines };
       }),
     );
+    if (order.status === "paid" && settings.useInventory) {
+      const delta = nextQty - line.qty;
+      if (delta > 0) setMenu((current) => consumeStock(current, [{ ...line, qty: delta }]));
+      if (delta < 0) setMenu((current) => restoreStock(current, [{ ...line, qty: -delta }]));
+    }
   }
 
   function billOrder(orderId: string) {
