@@ -1,7 +1,7 @@
 import type { DayOpen, ExpenseRow, PosOrder, TillSnapshot } from "./pos-types";
 import { applyPatch, sameRow, stable, wireRow, type TillPatch } from "./till-patch";
 
-/** Old snapshots have no base; migrate additions without overwriting existing records. */
+/** Old snapshots have no base; migrate additions and unambiguous day closures. */
 export function migrateLegacyTill(local: TillSnapshot, remote: TillSnapshot): TillSnapshot {
   const additions: TillPatch = { changes: [] };
   const newPaidOrders: PosOrder[] = [];
@@ -30,6 +30,19 @@ export function migrateLegacyTill(local: TillSnapshot, remote: TillSnapshot): Ti
           if (serverOrder.date === calendarDate && sameRow(collection, corrected, serverOrder)) {
             comparable = corrected;
           }
+        }
+      }
+      if (collection === "days" && existing) {
+        const deviceDay = row as DayOpen;
+        const serverDay = existing as DayOpen;
+        // Closing an otherwise identical open day is a forward transition.
+        // Use the fetched server row as the base so concurrent edits still conflict.
+        if (!serverDay.closedAt && deviceDay.closedAt &&
+          Date.parse(deviceDay.closedAt) >= Date.parse(serverDay.openedAt) &&
+          sameRow(collection, { ...deviceDay, closedAt: null }, serverDay)) {
+          additions.changes.push({ collection, key, before: existing,
+            after: { ...serverDay, closedAt: deviceDay.closedAt } });
+          continue;
         }
       }
       if (existing && !sameRow(collection, existing, comparable)) {

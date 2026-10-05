@@ -6,6 +6,40 @@ import { mockApi, sampleTill, signIn, waitForTill } from './helpers';
 
 const snapshot = () => sampleTill() as TillSnapshot;
 
+test('migrates an old day closure together with today’s missing order', () => {
+  const remote = snapshot();
+  remote.days.unshift({ date: '2026-10-04', openedAt: '2026-10-04T08:00:00Z',
+    openedBy: 'Ayesha', pettyCash: 2000, closedAt: null });
+  const local = structuredClone(remote);
+  local.days[0].openedAt = '2026-10-04T08:00:00.112Z';
+  local.days[0].closedAt = '2026-10-04T21:37:10.112Z';
+  local.orders.unshift({ ...local.orders[0], id: 'today-unsynced', token: 8 });
+  const recovered = migrateLegacyTill(local, remote);
+  const changes = diffTill(remote, recovered).changes;
+  expect(changes.filter(change => change.collection === 'orders')).toHaveLength(1);
+  expect(changes.find(change => change.collection === 'days')).toEqual({
+    collection: 'days', key: '2026-10-04', before: remote.days[0],
+    after: { ...remote.days[0], closedAt: local.days[0].closedAt },
+  });
+  expect(diffTill(recovered, migrateLegacyTill(local, recovered)).changes).toEqual([]);
+});
+
+test('a day closure cannot hide changed petty cash or replace another closure', () => {
+  const remote = snapshot(), local = structuredClone(remote);
+  local.days[0].closedAt = new Date(Date.parse(local.days[0].openedAt) + 1000).toISOString();
+  local.days[0].pettyCash += 100;
+  expect(() => migrateLegacyTill(local, remote)).toThrow(/pettyCash: device/);
+  local.days[0].pettyCash = remote.days[0].pettyCash;
+  remote.days[0].closedAt = new Date(Date.parse(local.days[0].closedAt) + 1000).toISOString();
+  expect(() => migrateLegacyTill(local, remote)).toThrow(/closedAt: device/);
+});
+
+test('a day closure before opening still requires review', () => {
+  const remote = snapshot(), local = structuredClone(remote);
+  local.days[0].closedAt = new Date(Date.parse(local.days[0].openedAt) - 1000).toISOString();
+  expect(() => migrateLegacyTill(local, remote)).toThrow(/needs review/);
+});
+
 test('missing legacy paidAt keeps the server timestamp without rewriting history', () => {
   const local = snapshot(), remote = snapshot();
   remote.orders[0].paidAt = '2026-10-04T20:30:00.000Z';
@@ -59,6 +93,9 @@ test('a legacy device upgrades and saves its missing order without rewriting pai
   local.orders.unshift({ ...local.orders[0], id: 'ord-1791058750980', token: 8 });
   local.nextToken = 9;
   local.menu.find(item => item.id === 'roti')!.stock -= 4;
+  remote.days.unshift({ date: '2026-10-04', openedAt: '2026-10-04T08:00:00Z',
+    openedBy: 'Ayesha', pettyCash: 2000, closedAt: null });
+  local.days.unshift({ ...remote.days[0], closedAt: '2026-10-04T21:37:10.112Z' });
   await mockApi(page, { till: remote as unknown as Record<string, unknown> });
   await page.addInitScript(till => {
     localStorage.setItem('dmn_pos_orders:shop-1', JSON.stringify({ orders: till.orders, nextToken: till.nextToken }));
@@ -74,7 +111,56 @@ test('a legacy device upgrades and saves its missing order without rewriting pai
   const patch = (await sent).postDataJSON();
   expect(patch.changes.filter((change: any) => change.collection === 'orders')).toHaveLength(1);
   expect(patch.changes.find((change: any) => change.collection === 'orders').key).toBe('ord-1791058750980');
+  expect(patch.changes.find((change: any) => change.collection === 'days')).toMatchObject({
+    key: '2026-10-04', before: { closedAt: null }, after: { closedAt: '2026-10-04T21:37:10.112Z' },
+  });
   await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('all today’s legacy orders survive failed uploads and repeated reloads before recovery', async ({ page }) => {
+  const remote = snapshot();
+  remote.settings.useInventory = false;
+  remote.days.unshift({ date: '2026-10-04', openedAt: '2026-10-04T08:00:00Z',
+    openedBy: 'Ayesha', pettyCash: 2000, closedAt: null });
+  const local = structuredClone(remote);
+  local.days[0].closedAt = '2026-10-04T21:37:10.112Z';
+  const unsynced = Array.from({ length: 20 }, (_, index) => ({
+    ...structuredClone(local.orders[0]), id: `today-unsynced-${index}`, token: 8 + index,
+  }));
+  local.orders.unshift(...unsynced);
+  local.nextToken = 28;
+  const options = { till: remote as unknown as Record<string, unknown>, failTillPut: true };
+  await mockApi(page, options);
+  await page.addInitScript(till => {
+    // Seed once: reload must recover the app's own persisted data.
+    if (sessionStorage.getItem('legacy-seeded')) return;
+    sessionStorage.setItem('legacy-seeded', '1');
+    localStorage.setItem('dmn_pos_orders:shop-1', JSON.stringify({ orders: till.orders, nextToken: till.nextToken }));
+    localStorage.setItem('dmn_pos_menu:shop-1', JSON.stringify(till.menu));
+    localStorage.setItem('dmn_pos_days:shop-1', JSON.stringify(till.days));
+    localStorage.setItem('dmn_pos_books:shop-1', JSON.stringify({ expenses: till.expenses, staff: till.staff }));
+    localStorage.setItem('dmn_pos_settings:shop-1', JSON.stringify(till.settings));
+    localStorage.setItem('dmn_pos_till_dirty:shop-1', '1');
+  }, local);
+  await signIn(page, 'owner@test.com'); await waitForTill(page);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await expect(page.getByRole('alert')).toContainText('Database write failed');
+    const retained = await page.evaluate(() => ({
+      orders: JSON.parse(localStorage.getItem('dmn_pos_orders:shop-1') || '{}').orders,
+      outbox: JSON.parse(localStorage.getItem('dmn_pos_till_outbox_v1:shop-1') || '{}'),
+    }));
+    const retainedOrders = retained.orders.filter((order: any) => order.id.startsWith('today-unsynced-'));
+    expect(retainedOrders).toEqual(expect.arrayContaining(unsynced));
+    expect(retainedOrders).toHaveLength(20);
+    expect(retained.outbox.changes.filter((change: any) => change.collection === 'orders')).toHaveLength(20);
+    if (attempt < 2) { await page.reload(); await waitForTill(page); }
+  }
+  options.failTillPut = false;
+  await page.reload(); await waitForTill(page);
+  await expect(page.locator('.status-pill')).toContainText('Saved');
+  expect(remote.orders.filter(order => order.id.startsWith('today-unsynced-')))
+    .toEqual(expect.arrayContaining(unsynced));
+  expect(remote.orders.filter(order => order.id.startsWith('today-unsynced-'))).toHaveLength(20);
 });
 
 test('a migration conflict still persists new orders locally', async ({ page }) => {
