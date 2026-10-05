@@ -102,3 +102,30 @@ test('a migration conflict still persists new orders locally', async ({ page }) 
   })).toBe(true);
   expect(requests).toBe(0);
 });
+
+test('adopts a corrected server date matching creation time without rewriting the order', () => {
+  const local = snapshot(), remote = structuredClone(local);
+  const id = `ord-${new Date(2026, 9, 5, 1, 22, 33).getTime()}`;
+  local.orders[0] = { ...local.orders[0], id, date: '2026-10-04', time: '1:22 AM' };
+  remote.orders[0] = { ...local.orders[0], date: '2026-10-05', paidAt: '2026-10-04T20:24:20.000Z' };
+  const recovered = migrateLegacyTill(local, remote);
+  expect(recovered.orders[0].date).toBe('2026-10-05');
+  expect(recovered.orders[0].paidAt).toBe(remote.orders[0].paidAt);
+  expect(diffTill(remote, recovered).changes).toEqual([]);
+});
+
+test('does not accept a server date that differs from creation time', () => {
+  const local = snapshot(), remote = structuredClone(local);
+  const id = `ord-${new Date(2026, 9, 5, 1, 22, 33).getTime()}`;
+  local.orders[0] = { ...local.orders[0], id, date: '2026-10-04' };
+  remote.orders[0] = { ...local.orders[0], date: '2026-10-06' };
+  expect(() => migrateLegacyTill(local, remote)).toThrow(/needs review/);
+});
+
+test('a corrected date does not hide differing quantities or payment details', () => {
+  const local = snapshot(), remote = structuredClone(local);
+  const id = `ord-${new Date(2026, 9, 5, 1, 22, 33).getTime()}`;
+  local.orders[0] = { ...local.orders[0], id, date: '2026-10-04' };
+  remote.orders[0] = { ...local.orders[0], date: '2026-10-05', payment: 'online' };
+  expect(() => migrateLegacyTill(local, remote)).toThrow(/payment: device "cash"; server "online"/);
+});
