@@ -95,6 +95,67 @@ test('conflicts retain the outbox and do not retry automatically', async () => {
   pusher.stop();
 });
 
+test('keeping the local ticket rebases before and retries', async () => {
+  const base = snapshot(), next = structuredClone(base);
+  next.orders[0].payment = 'online';
+  const server = { ...base.orders[0], payment: 'cash' as const, time: '3:00 PM' };
+  const sent: TillPatch[] = [];
+  const pusher = createTillPusher({
+    isOnline: () => true,
+    put: async (patch) => {
+      sent.push(patch);
+      if (sent.length === 1) {
+        throw new ApiError('Another till changed orders ord-paid.', 409, {
+          collection: 'orders',
+          key: 'ord-paid',
+          current: server,
+          before: base.orders[0],
+          after: next.orders[0],
+        });
+      }
+    },
+  });
+  pusher.initialize(base);
+  pusher.enqueue(next);
+  await tick();
+  pusher.resolveConflict('local');
+  await tick();
+  expect(sent).toHaveLength(2);
+  expect(sent[1].changes[0]).toMatchObject({ key: 'ord-paid', before: server, after: next.orders[0] });
+  pusher.stop();
+});
+
+test('keeping the server ticket drops that change and restores the row', async () => {
+  const base = snapshot(), next = structuredClone(base);
+  next.orders = [];
+  const server = base.orders[0];
+  let journal: TillPatch | undefined;
+  const sent: TillPatch[] = [];
+  const pusher = createTillPusher({
+    isOnline: () => true,
+    persist: (body) => { journal = body; },
+    put: async (patch) => {
+      sent.push(patch);
+      throw new ApiError('Another till changed orders ord-paid.', 409, {
+        collection: 'orders',
+        key: 'ord-paid',
+        current: server,
+        before: server,
+        after: null,
+      });
+    },
+  });
+  pusher.initialize(base);
+  pusher.enqueue(next);
+  await pusher.flushNow();
+  const till = pusher.resolveConflict('server');
+  await tick();
+  expect(sent).toHaveLength(1);
+  expect(till?.orders).toEqual([server]);
+  expect(journal?.changes ?? []).toHaveLength(0);
+  pusher.stop();
+});
+
 test('storage failure prevents sending an undurable operation', async () => {
   let calls = 0;
   const base = snapshot(), next = structuredClone(base);

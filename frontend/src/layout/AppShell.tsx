@@ -4,6 +4,7 @@ import { rupees } from "../demo-data";
 import { BrandLockup } from "./BrandLockup";
 import { usePos } from "../pos-store";
 import { SyncStatus } from "../screens/SyncStatus";
+import { TicketConflictDialog } from "../screens/TicketConflictDialog";
 import type { Screen } from "../pos-types";
 
 const PRIMARY_ALL: { id: Screen; label: string }[] = [
@@ -99,7 +100,7 @@ export function AppShell({
   onScreen: (screen: Screen) => void;
   children: ReactNode;
 }) {
-  const { todayOpen, settings, sync, endDay } = usePos();
+  const { todayOpen, settings, sync, endDay, resolveSyncConflict } = usePos();
   const [moreOpen, setMoreOpen] = useState(false);
   const displayRole = role === "admin" ? "Admin" : "Cashier";
   const primary = settings.useTables
@@ -190,7 +191,9 @@ export function AppShell({
           </div>
         </div>
       </header>
-      {sync.status === "error" && sync.error ? (
+      {sync.conflict ? (
+        <TicketConflictDialog conflict={sync.conflict} onPick={resolveSyncConflict} />
+      ) : sync.status === "error" && sync.error ? (
         <p className="sync-banner" role="alert">
           Could not save to the server: {sync.error}
         </p>

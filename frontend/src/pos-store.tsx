@@ -125,6 +125,7 @@ type PosContextValue = {
   settings: PosSettings;
   updateSettings: (patch: Partial<PosSettings>) => void;
   canAmendCatalog: boolean;
+  resolveSyncConflict: (keep: "local" | "server") => void;
 };
 
 const ORDERS_KEY = "dmn_pos_orders";
@@ -550,6 +551,11 @@ export function PosProvider({
     layout,
     categories,
   ]);
+
+  function resolveSyncConflict(keep: "local" | "server") {
+    const till = pusherRef.current.resolveConflict(keep);
+    if (keep === "server" && till) applyTill(till, false);
+  }
 
   useEffect(() => {
     const pusher = pusherRef.current;
@@ -1015,6 +1021,7 @@ export function PosProvider({
     settings,
     updateSettings,
     canAmendCatalog: catalogOnline,
+    resolveSyncConflict,
   };
 
   return <PosContext.Provider value={value}>{children}</PosContext.Provider>;

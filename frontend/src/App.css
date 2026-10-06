@@ -2358,6 +2358,52 @@ select:focus-visible {
   font-size: 32px;
 }
 
+.conflict-modal {
+  width: min(720px, 100%);
+}
+
+.conflict-modal > p {
+  margin: 12px 0 20px;
+  color: var(--ink-soft);
+}
+
+.conflict-copies {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.conflict-copy {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--cream);
+}
+
+.conflict-copy h3 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.conflict-copy p {
+  margin: 0;
+}
+
+.conflict-kicker {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.conflict-copy .btn-ink,
+.conflict-copy .btn-tandoor {
+  margin-top: 8px;
+}
+
 .modal label {
   display: block;
   margin: 14px 0 6px;
@@ -2967,6 +3013,10 @@ select:focus-visible {
     overflow: auto;
     padding: 22px 16px calc(16px + env(safe-area-inset-bottom, 0px));
     border-radius: 20px 20px 12px 12px;
+  }
+
+  .conflict-copies {
+    grid-template-columns: 1fr;
   }
 
   .modal h2,

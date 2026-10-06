@@ -3,12 +3,22 @@ export const AUTH_TOKEN_KEY = "bearer_token";
 
 function messageFromBody(body: { message?: unknown }) {
   if (typeof body.message === "string") return body.message;
+  if (body.message && typeof body.message === "object" && !Array.isArray(body.message)) {
+    const nested = (body.message as { message?: unknown }).message;
+    if (typeof nested === "string") return nested;
+  }
   if (Array.isArray(body.message)) return body.message.join(" ");
   return null;
 }
 
 export class ApiError extends Error {
-  constructor(message: string, public readonly status: number) { super(message); }
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly body: Record<string, unknown> | null = null,
+  ) {
+    super(message);
+  }
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -26,10 +36,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as {
-      message?: unknown;
-    };
-    throw new ApiError(messageFromBody(body) ?? response.statusText, response.status);
+    const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    throw new ApiError(messageFromBody(body) ?? response.statusText, response.status, body);
   }
 
   if (response.status === 204) {

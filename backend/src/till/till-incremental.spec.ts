@@ -51,9 +51,16 @@ describe('incremental till persistence', () => {
 
   it('rejects a stale edit without touching the record', async () => {
     const { em, restaurant } = setup();
-    await expect(applyTillChanges(em as unknown as EntityManager, restaurant, { changes: [
+    const err = await applyTillChanges(em as unknown as EntityManager, restaurant, { changes: [
       { collection: 'orders', key: wire.id, before: { ...wire, payment: 'online' }, after: { ...wire, time: '2:00 AM' } },
-    ] })).rejects.toBeInstanceOf(ConflictException);
+    ] }).catch((error: unknown) => error);
+    expect(err).toBeInstanceOf(ConflictException);
+    expect((err as ConflictException).getResponse()).toMatchObject({
+      collection: 'orders',
+      key: wire.id,
+      current: expect.objectContaining({ payment: 'cash', token: 9 }),
+      after: expect.objectContaining({ time: '2:00 AM' }),
+    });
     expect(em.save).not.toHaveBeenCalled(); expect(em.remove).not.toHaveBeenCalled();
   });
 

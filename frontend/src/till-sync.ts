@@ -1,5 +1,11 @@
 import { ApiError } from "./api";
 import { applyPatch, diffTill, type TillPatch } from "./till-patch";
+import {
+  applyConflictRow,
+  parseTillConflict,
+  rebaseConflict,
+  type TillConflict,
+} from "./till-conflict";
 import type { TillSnapshot } from "./pos-types";
 import { readTenantItem, writeTenantItem } from "./tenant-storage";
 
@@ -10,6 +16,7 @@ export type TillSyncStatus = "saved" | "saving" | "queued" | "error";
 export type TillSyncState = {
   status: TillSyncStatus;
   error: string | null;
+  conflict?: TillConflict | null;
 };
 
 export function tillIsDirty(restaurantId: string) {
@@ -76,9 +83,10 @@ export function createTillPusher(options: {
   let blocked = false;
   let stopped = false;
   let submitted: TillPatch | null = null;
+  let conflict: TillConflict | null = null;
 
   function setStatus(status: TillSyncStatus, error: string | null = null) {
-    options.onStatus?.({ status, error });
+    options.onStatus?.({ status, error, conflict: status === "error" ? conflict : null });
   }
 
   function initialize(snapshot: TillSnapshot, pending?: TillPatch | null) {
@@ -87,6 +95,7 @@ export function createTillPusher(options: {
     if (pending?.submitted) base = applyPatch(base, pending.submitted, "before");
     submitted = pending?.submitted || null;
     blocked = false;
+    conflict = null;
   }
 
   function journal(desired: TillSnapshot): TillPatch {
@@ -135,6 +144,7 @@ export function createTillPusher(options: {
       }
     } catch (error) {
       queued = queued ?? payload;
+      conflict = parseTillConflict(error);
       setStatus("error", saveErrorMessage(error));
       if (error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 408 && error.status !== 429) {
         blocked = true;
@@ -150,6 +160,32 @@ export function createTillPusher(options: {
       inflight = false;
     }
     if (queued && !blocked && !stopped && !timer && isOnline()) void drain();
+  }
+
+  function resolveConflict(keep: "local" | "server"): TillSnapshot | null {
+    if (!conflict || !submitted || !base) return queued;
+    if (keep === "local") {
+      submitted = rebaseConflict(submitted, conflict, "local");
+    } else {
+      const restored = applyConflictRow(queued ?? applyPatch(base, submitted), conflict);
+      queued = restored;
+      submitted = rebaseConflict(submitted, conflict, "server");
+      if (!submitted.changes.length) submitted = null;
+      base = applyConflictRow(base, conflict);
+    }
+    conflict = null;
+    blocked = false;
+    try {
+      if (queued) options.persist?.(journal(queued));
+      else options.persist?.(submitted ?? { changes: [] });
+    } catch {
+      blocked = true;
+      setStatus("error", "Device storage is full. Keep this window open; offline changes could not be saved.");
+      return queued;
+    }
+    const resolved = queued;
+    void drain();
+    return resolved;
   }
 
   function flushNow() {
@@ -188,5 +224,5 @@ export function createTillPusher(options: {
     }
   }
 
-  return { initialize, enqueue, flushNow, start, stop };
+  return { initialize, enqueue, flushNow, resolveConflict, start, stop };
 }

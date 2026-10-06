@@ -1,4 +1,4 @@
-import { applyPatch, type TillPatch } from "../src/till-patch";
+import { applyPatch, sameRow, type TillPatch } from "../src/till-patch";
 import type { TillSnapshot } from "../src/pos-types";
 import { expect, type Page } from "@playwright/test";
 
@@ -148,6 +148,7 @@ export async function mockApi(
     user?: MockUser | null;
     till?: Record<string, unknown>;
     failTillPut?: boolean;
+    conflictTill?: boolean;
     staff?: Array<{ id: string; name: string; email: string; role: string }>;
     shops?: unknown[];
   } = {},
@@ -156,6 +157,7 @@ export async function mockApi(
   const till = options.till ?? sampleTill();
   const staff = options.staff ?? [];
   const shops = options.shops ?? [];
+  let armOrderConflict = Boolean(options.conflictTill);
 
   await page.addInitScript(() => {
     window.print = () => {};
@@ -242,6 +244,43 @@ export async function mockApi(
         return;
       }
       const body = request.postDataJSON() as TillPatch;
+      if (options.conflictTill) {
+        const change = body.changes.find((entry) => entry.collection === "orders" && entry.key === "ord-paid");
+        const current = (till.orders as Array<{ id: string; time?: string }>).find((row) => row.id === "ord-paid") ?? null;
+        if (change && armOrderConflict) {
+          armOrderConflict = false;
+          const diverged = current ? { ...current, time: "9:00 PM" } : null;
+          if (current && diverged) Object.assign(current, diverged);
+          await route.fulfill({
+            status: 409,
+            contentType: "application/json",
+            body: JSON.stringify({
+              message: "Another till changed orders ord-paid. Your local work is retained; resolve this conflict before syncing.",
+              collection: "orders",
+              key: "ord-paid",
+              current: diverged,
+              before: change.before,
+              after: change.after,
+            }),
+          });
+          return;
+        }
+        if (change && !sameRow("orders", current, change.before)) {
+          await route.fulfill({
+            status: 409,
+            contentType: "application/json",
+            body: JSON.stringify({
+              message: "Another till changed orders ord-paid. Your local work is retained; resolve this conflict before syncing.",
+              collection: "orders",
+              key: "ord-paid",
+              current,
+              before: change.before,
+              after: change.after,
+            }),
+          });
+          return;
+        }
+      }
       Object.assign(till, applyPatch(till as TillSnapshot, body));
       await route.fulfill({
         status: 200,

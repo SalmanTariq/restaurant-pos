@@ -74,7 +74,16 @@ export async function applyTillChanges(em: EntityManager, restaurant: Restaurant
       await em.save(restaurant);
       continue;
     }
-    if (!sameRow(collection, current, before)) throw new ConflictException(`Another till changed ${collection} ${key}. Your local work is retained; resolve this conflict before syncing.`);
+    if (!sameRow(collection, current, before)) {
+      throw new ConflictException({
+        message: `Another till changed ${collection} ${key}. Your local work is retained; resolve this conflict before syncing.`,
+        collection,
+        key,
+        current,
+        before,
+        after,
+      });
+    }
     if (!entity) {
       if (collection === 'settings') Object.assign(restaurant, { name: after.restaurantName, logoDataUrl: after.logoDataUrl,
         requirePettyCash: after.requirePettyCash, useInventory: after.useInventory, useTables: after.useTables });
