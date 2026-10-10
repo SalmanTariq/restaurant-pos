@@ -64,6 +64,21 @@ describe('incremental till persistence', () => {
     expect(em.save).not.toHaveBeenCalled(); expect(em.remove).not.toHaveBeenCalled();
   });
 
+  it('lets a till edit an old ticket whose GET shape differs from the raw MySQL row', async () => {
+    const { em, restaurant, order } = setup();
+    order.clockTime = null;
+    order.paymentMethod = null;
+    order.status = 'pending';
+    const before = { ...wire, time: '', status: 'open' as const };
+    delete (before as { payment?: string }).payment;
+    await applyTillChanges(em as unknown as EntityManager, restaurant, { changes: [
+      { collection: 'orders', key: wire.id, before, after: { ...before, time: '2:00 AM', status: 'paid', payment: 'cash' } },
+    ] });
+    expect(order.clockTime).toBe('2:00 AM');
+    expect(order.paymentMethod).toBe('cash');
+    expect(order.status).toBe('paid');
+  });
+
   it('creates only the new order and derives its creation time from the offline ID', async () => {
     const { em, restaurant } = setup(false);
     await applyTillChanges(em as unknown as EntityManager, restaurant, { changes: [

@@ -6,7 +6,7 @@ import { MenuItem } from '../database/entities/menu-item.entity';
 import { Order, OrderItem } from '../database/entities/order.entity';
 import { Restaurant } from '../database/entities/restaurant.entity';
 import { WageStaff } from '../database/entities/wage-staff.entity';
-import { asDate, money, moneyStr, normalizeTillSnapshot, readLayout } from './till-snapshot';
+import { asDate, money, moneyStr, normalizeTillSnapshot, readLayout, tillOrderFromRow } from './till-snapshot';
 import { mergeMenuCategories } from './menu-categories';
 import { rowCollections, rowKey, sameRow, stable, TillPatch } from './till-patch';
 
@@ -19,9 +19,7 @@ function toWire(collection: string, row: any): any {
   switch (collection) {
     case 'menu': return { id: row.clientId, name: row.name, nameUrdu: row.nameUrdu || '', category: row.category,
       price: money(row.salePrice), stock: row.stock, active: row.isActive, imageDataUrl: row.imageDataUrl || null };
-    case 'orders': return { id: row.clientId, token: row.tokenNumber, type: row.type, tableId: row.tableId ?? row.tableNumber,
-      date: asDate(row.businessDate), time: row.clockTime, status: row.status, payment: row.paymentMethod || undefined, paidAt: row.paidAt ? new Date(row.paidAt).toISOString() : undefined,
-      lines: row.items.map((line: any) => ({ id: line.clientItemId || '', name: line.name, price: money(line.unitPrice), qty: line.quantity })) };
+    case 'orders': return tillOrderFromRow(row);
     case 'expenses': return { id: row.clientId, title: row.title, category: row.category, amount: money(row.amount), date: asDate(row.date), notes: row.notes || '', staffId: row.staffId || undefined };
     case 'staff': return { id: row.clientId, name: row.name, dailyWage: money(row.dailyWage) };
     case 'days': return { date: asDate(row.date), openedAt: new Date(row.openedAt).toISOString(), pettyCash: money(row.pettyCash), openedBy: row.openedBy,

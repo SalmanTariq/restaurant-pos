@@ -10,6 +10,7 @@ import {
   normalizeOrder,
   normalizeTillSnapshot,
   readLayout,
+  tillOrderFromRow,
 } from './till-snapshot';
 
 describe('till snapshot helpers', () => {
@@ -159,5 +160,31 @@ describe('normalizeTillSnapshot', () => {
     );
     expect(order.payment).toBeUndefined();
     expect(order.status).toBe('open');
+  });
+});
+
+describe('tillOrderFromRow', () => {
+  it('matches GET for a sparse MySQL ticket so old edits can sync', () => {
+    expect(
+      tillOrderFromRow({
+        clientId: 'ord-1',
+        tokenNumber: 4,
+        type: 'walk-in',
+        tableId: null,
+        businessDate: '2026-10-06',
+        clockTime: null,
+        status: 'pending',
+        paymentMethod: null,
+        paidAt: null,
+        items: [{ clientItemId: null, name: 'Roti', unitPrice: '25.00', quantity: 2 }],
+      }),
+    ).toMatchObject({
+      id: 'ord-1',
+      token: 4,
+      type: 'takeaway',
+      time: '',
+      status: 'open',
+      lines: [{ id: '', name: 'Roti', price: 25, qty: 2 }],
+    });
   });
 });

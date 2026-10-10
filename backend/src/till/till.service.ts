@@ -17,6 +17,7 @@ import {
   money,
   moneyStr,
   readLayout,
+  tillOrderFromRow,
   type TillOrder,
   type TillSnapshot,
 } from './till-snapshot';
@@ -201,31 +202,6 @@ export class TillService {
   }
 
   private toOrder(order: Order): TillOrder {
-    const type = order.type === 'dine-in' ? 'dine-in' : 'takeaway';
-    const status =
-      order.status === 'billed' || order.status === 'paid'
-        ? order.status
-        : 'open';
-    const payment =
-      order.paymentMethod === 'online' || order.paymentMethod === 'cash'
-        ? order.paymentMethod
-        : undefined;
-    return {
-      id: order.clientId,
-      token: order.tokenNumber,
-      type,
-      tableId: order.tableId ?? order.tableNumber,
-      date: asDate(order.businessDate),
-      time: order.clockTime || '',
-      status,
-      payment,
-      paidAt: order.paidAt ? order.paidAt.toISOString() : undefined,
-      lines: (order.items ?? []).map((line) => ({
-        id: line.clientItemId || '',
-        name: line.name,
-        price: money(line.unitPrice),
-        qty: line.quantity,
-      })),
-    };
+    return tillOrderFromRow(order);
   }
 }

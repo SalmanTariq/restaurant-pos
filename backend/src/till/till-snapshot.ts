@@ -246,3 +246,47 @@ export function normalizeOrder(order: TillOrder, index: number): TillOrder {
       : [],
   };
 }
+
+/** Same shape GET /till returns, so OCC compares apples to apples. */
+export function tillOrderFromRow(row: {
+  clientId: string;
+  tokenNumber: number;
+  type?: string | null;
+  tableId?: string | null;
+  tableNumber?: string | null;
+  businessDate: string | Date;
+  clockTime?: string | null;
+  status?: string | null;
+  paymentMethod?: string | null;
+  paidAt?: string | Date | null;
+  items?: Array<{
+    clientItemId?: string | null;
+    name: string;
+    unitPrice: string | number;
+    quantity: number;
+  }> | null;
+}): TillOrder {
+  return normalizeOrder(
+    {
+      id: row.clientId,
+      token: row.tokenNumber,
+      type: row.type === 'dine-in' ? 'dine-in' : 'takeaway',
+      tableId: row.tableId ?? row.tableNumber ?? null,
+      date: asDate(row.businessDate),
+      time: row.clockTime || '',
+      status: row.status === 'billed' || row.status === 'paid' ? row.status : 'open',
+      payment:
+        row.paymentMethod === 'online' || row.paymentMethod === 'cash'
+          ? row.paymentMethod
+          : undefined,
+      paidAt: row.paidAt ? new Date(row.paidAt).toISOString() : undefined,
+      lines: (row.items ?? []).map((line) => ({
+        id: line.clientItemId || '',
+        name: line.name,
+        price: money(line.unitPrice),
+        qty: line.quantity,
+      })),
+    },
+    0,
+  );
+}
