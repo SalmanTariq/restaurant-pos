@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { inDateTimeRange, rupees, todayISO, START_OF_DAY, END_OF_DAY, DEFAULT_REPORT_START_TIME, DEFAULT_REPORT_END_TIME } from "../demo-data";
+import { inDateTimeRange, rupees, defaultReportRange } from "../demo-data";
 import {
   downloadReport,
   fileStamp,
@@ -21,11 +21,11 @@ type SoldRow = {
 
 export function ItemsSoldScreen() {
   const { orders, menu, settings } = usePos();
-  const today = todayISO();
-  const [from, setFrom] = useState(today);
-  const [to, setTo] = useState(today);
-  const [fromTime, setFromTime] = useState(DEFAULT_REPORT_START_TIME);
-  const [toTime, setToTime] = useState(DEFAULT_REPORT_END_TIME);
+  const workingDay = defaultReportRange();
+  const [from, setFrom] = useState(workingDay.from);
+  const [to, setTo] = useState(workingDay.to);
+  const [fromTime, setFromTime] = useState(workingDay.fromTime);
+  const [toTime, setToTime] = useState(workingDay.toTime);
   const [query, setQuery] = useState("");
 
   const rows = useMemo(() => {
@@ -105,17 +105,17 @@ export function ItemsSoldScreen() {
               type="button"
               className="range-today"
               disabled={
-                from === today &&
-                to === today &&
-                fromTime === START_OF_DAY &&
-                toTime === END_OF_DAY
+                from === workingDay.from &&
+                to === workingDay.to &&
+                fromTime === workingDay.fromTime &&
+                toTime === workingDay.toTime
               }
               onClick={() => {
-                const day = todayISO();
-                setFrom(day);
-                setTo(day);
-                setFromTime(START_OF_DAY);
-                setToTime(END_OF_DAY);
+                const range = defaultReportRange();
+                setFrom(range.from);
+                setTo(range.to);
+                setFromTime(range.fromTime);
+                setToTime(range.toTime);
               }}
             >
               Today

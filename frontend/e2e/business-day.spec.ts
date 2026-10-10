@@ -1,10 +1,17 @@
 import { expect, test } from '@playwright/test';
 import { businessDayDate, businessDayRange, currentBusinessDay, nextTokenForDay } from '../src/business-day';
+import { defaultReportRange } from '../src/demo-data';
 import { mockApi, sampleTill, signIn, waitForTill } from './helpers';
 
 test('business day rolls over at 10am and filters through 3am the following date', () => {
   expect(businessDayRange(new Date(2026, 9, 6, 1))).toEqual({
     from: '2026-10-05', to: '2026-10-06', fromTime: '10:00', toTime: '03:00',
+  });
+  expect(defaultReportRange(new Date(2026, 9, 6, 8))).toEqual({
+    from: '2026-10-05', to: '2026-10-06', fromTime: '10:00', toTime: '03:00',
+  });
+  expect(defaultReportRange(new Date(2026, 9, 6, 14))).toEqual({
+    from: '2026-10-06', to: '2026-10-07', fromTime: '10:00', toTime: '03:00',
   });
   expect(currentBusinessDay(new Date(2026, 9, 6, 9, 59))).toBe('2026-10-05');
   expect(currentBusinessDay(new Date(2026, 9, 6, 10))).toBe('2026-10-06');
@@ -43,6 +50,41 @@ test('Orders defaults to the current business day and can show older tickets', a
   await expect(page.locator('.rail-card')).toHaveCount(3);
   await page.getByRole('button', { name: 'Today’s business day' }).click();
   await expect(page.locator('.rail-card')).toHaveCount(2);
+});
+
+test('report pages default to the working day, or the previous day before 10am', async ({ page }) => {
+  const rangeDates = page.locator('.range-fields input[type=date]');
+  await page.clock.setFixedTime(new Date(2026, 9, 6, 8));
+  await mockApi(page);
+  await signIn(page, 'owner@test.com'); await waitForTill(page);
+  for (const name of ['Sales', 'Expenses', 'Items sold', 'Balance'] as const) {
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name }).click();
+    await expect(rangeDates.first()).toHaveValue('2026-10-05');
+    await expect(rangeDates.last()).toHaveValue('2026-10-06');
+    await expect(page.getByLabel('From time')).toHaveValue('10:00');
+    await expect(page.getByLabel('To time')).toHaveValue('03:00');
+  }
+
+  await page.clock.setFixedTime(new Date(2026, 9, 6, 14));
+  await page.reload();
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  for (const name of ['Sales', 'Expenses', 'Items sold', 'Balance'] as const) {
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name }).click();
+    await expect(rangeDates.first()).toHaveValue('2026-10-06');
+    await expect(rangeDates.last()).toHaveValue('2026-10-07');
+    await expect(page.getByLabel('From time')).toHaveValue('10:00');
+    await expect(page.getByLabel('To time')).toHaveValue('03:00');
+  }
+
+  for (const name of ['Sales', 'Items sold', 'Balance'] as const) {
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name }).click();
+    await rangeDates.first().fill('2026-10-01');
+    await page.getByRole('button', { name: 'Today', exact: true }).click();
+    await expect(rangeDates.first()).toHaveValue('2026-10-06');
+    await expect(rangeDates.last()).toHaveValue('2026-10-07');
+    await expect(page.getByLabel('From time')).toHaveValue('10:00');
+    await expect(page.getByLabel('To time')).toHaveValue('03:00');
+  }
 });
 
 test('new business-day tokens start at one, continue across midnight, and survive reload', async ({ page }) => {

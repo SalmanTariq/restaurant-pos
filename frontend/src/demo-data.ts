@@ -243,11 +243,21 @@ export const END_OF_DAY = "23:59";
 export const DEFAULT_REPORT_START_TIME = "10:00";
 export const DEFAULT_REPORT_END_TIME = "03:00";
 
-/** Default report dates: yesterday through today. */
-export function defaultReportRange() {
+function dateISOFromLocal(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Default report window for the working day (10:00–03:00).
+ * Before 10:00 the current or just-ended day started yesterday.
+ */
+export function defaultReportRange(now = new Date()) {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (now.getHours() < 10) start.setDate(start.getDate() - 1);
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
   return {
-    from: daysAgoISO(1),
-    to: todayISO(),
+    from: dateISOFromLocal(start),
+    to: dateISOFromLocal(end),
     fromTime: DEFAULT_REPORT_START_TIME,
     toTime: DEFAULT_REPORT_END_TIME,
   };

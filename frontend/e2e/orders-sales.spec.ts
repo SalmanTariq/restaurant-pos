@@ -80,7 +80,6 @@ test.describe("paid orders", () => {
   test("opens a past sale from Sales and prints the bill", async ({ page }) => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Sales" }).click();
     await expect(page.getByRole("heading", { name: "Sales" })).toBeVisible();
-    await page.getByRole('button', { name: 'Today', exact: true }).click();
     await expect(page.getByRole("cell", { name: "#7" })).toBeVisible();
     await page.getByRole("button", { name: "Print bill" }).first().click();
     await page.getByRole("cell", { name: "#7" }).click();
@@ -90,9 +89,11 @@ test.describe("paid orders", () => {
 
   test("hides a paid ticket outside the selected time window", async ({ page }) => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Sales" }).click();
-    await page.getByRole('button', { name: 'Today', exact: true }).click();
     await expect(page.getByRole("cell", { name: "#7" })).toBeVisible();
-    await page.getByLabel("To time").fill("08:00");
+    await page.locator('.range-fields input[type=date]').last().fill(
+      await page.locator('.range-fields input[type=date]').first().inputValue(),
+    );
+    await page.getByLabel("To time").fill("11:00");
     await expect(page.getByRole("cell", { name: "#7" })).toHaveCount(0);
   });
 
@@ -100,7 +101,6 @@ test.describe("paid orders", () => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("button", { name: "Items sold" }).click();
     await expect(page).toHaveURL(/\/items$/);
     await expect(page.getByRole("heading", { name: "Items sold" })).toBeVisible();
-    await page.getByRole('button', { name: 'Today', exact: true }).click();
     await expect(page.getByRole("cell", { name: "Tandoori Roti" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "4" })).toBeVisible();
   });

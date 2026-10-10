@@ -6,8 +6,6 @@ import {
   defaultReportRange,
   todayISO,
   inDateTimeRange,
-  START_OF_DAY,
-  END_OF_DAY,
 } from "../demo-data";
 import { usePos } from "../pos-store";
 import type { OrderType, PaymentMethod, PosOrder, SaleRow } from "../pos-types";
@@ -67,11 +65,11 @@ export function SalesScreen({
 }) {
   const { orders, expenses, days, settings } = usePos();
   const today = todayISO();
-  const initialRange = defaultReportRange();
-  const [from, setFrom] = useState(initialRange.from);
-  const [to, setTo] = useState(initialRange.to);
-  const [fromTime, setFromTime] = useState(initialRange.fromTime);
-  const [toTime, setToTime] = useState(initialRange.toTime);
+  const workingDay = defaultReportRange();
+  const [from, setFrom] = useState(workingDay.from);
+  const [to, setTo] = useState(workingDay.to);
+  const [fromTime, setFromTime] = useState(workingDay.fromTime);
+  const [toTime, setToTime] = useState(workingDay.toTime);
   const [query, setQuery] = useState("");
   const [payment, setPayment] = useState<"all" | PaymentMethod>("all");
   const [orderType, setOrderType] = useState<"all" | OrderType>("all");
@@ -171,7 +169,7 @@ export function SalesScreen({
           <h1>Sales</h1>
           <p className="subhead">
             {rangeLabel(from, to, fromTime, toTime)}
-            {from === today && to === today && todayOpen
+            {from === workingDay.from && to === workingDay.to && todayOpen
               ? ` — day opened ${clockFromIso(todayOpen.openedAt)}.`
               : "."}{" "}
             Open a paid order to reprint the guest bill.
@@ -193,17 +191,17 @@ export function SalesScreen({
               type="button"
               className="range-today"
               disabled={
-                from === today &&
-                to === today &&
-                fromTime === START_OF_DAY &&
-                toTime === END_OF_DAY
+                from === workingDay.from &&
+                to === workingDay.to &&
+                fromTime === workingDay.fromTime &&
+                toTime === workingDay.toTime
               }
               onClick={() => {
-                const day = todayISO();
-                setFrom(day);
-                setTo(day);
-                setFromTime(START_OF_DAY);
-                setToTime(END_OF_DAY);
+                const range = defaultReportRange();
+                setFrom(range.from);
+                setTo(range.to);
+                setFromTime(range.fromTime);
+                setToTime(range.toTime);
               }}
             >
               Today

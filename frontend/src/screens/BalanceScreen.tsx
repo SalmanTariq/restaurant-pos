@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { EXPENSE_CATEGORIES, defaultReportRange, inDateTimeRange, lineTotal, rupees, todayISO, START_OF_DAY, END_OF_DAY } from "../demo-data";
+import { EXPENSE_CATEGORIES, defaultReportRange, inDateTimeRange, lineTotal, rupees } from "../demo-data";
 import { usePos } from "../pos-store";
 import {
   downloadReport,
@@ -12,13 +12,12 @@ import { ExportButtons } from "./ExportButtons";
 import { restaurantSlug } from "../settings";
 
 export function BalanceScreen() {
-  const today = todayISO();
-  const initialRange = defaultReportRange();
+  const workingDay = defaultReportRange();
   const { orders, expenses, days, settings } = usePos();
-  const [from, setFrom] = useState(initialRange.from);
-  const [to, setTo] = useState(initialRange.to);
-  const [fromTime, setFromTime] = useState(initialRange.fromTime);
-  const [toTime, setToTime] = useState(initialRange.toTime);
+  const [from, setFrom] = useState(workingDay.from);
+  const [to, setTo] = useState(workingDay.to);
+  const [fromTime, setFromTime] = useState(workingDay.fromTime);
+  const [toTime, setToTime] = useState(workingDay.toTime);
 
   const paid = useMemo(
     () =>
@@ -114,17 +113,17 @@ export function BalanceScreen() {
               type="button"
               className="range-today"
               disabled={
-                from === today &&
-                to === today &&
-                fromTime === START_OF_DAY &&
-                toTime === END_OF_DAY
+                from === workingDay.from &&
+                to === workingDay.to &&
+                fromTime === workingDay.fromTime &&
+                toTime === workingDay.toTime
               }
               onClick={() => {
-                const day = todayISO();
-                setFrom(day);
-                setTo(day);
-                setFromTime(START_OF_DAY);
-                setToTime(END_OF_DAY);
+                const range = defaultReportRange();
+                setFrom(range.from);
+                setTo(range.to);
+                setFromTime(range.fromTime);
+                setToTime(range.toTime);
               }}
             >
               Today

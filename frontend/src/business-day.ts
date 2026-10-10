@@ -1,4 +1,4 @@
-import { clockToMinutes } from "./demo-data";
+import { clockToMinutes, defaultReportRange } from "./demo-data";
 import type { PosOrder } from "./pos-types";
 
 function dateISO(date: Date) {
@@ -17,9 +17,7 @@ export function currentBusinessDay(now = new Date()) {
 }
 
 export function businessDayRange(now = new Date()) {
-  const from = currentBusinessDay(now);
-  const [year, month, day] = from.split("-").map(Number);
-  return { from, to: dateISO(new Date(year, month - 1, day + 1)), fromTime: "10:00", toTime: "03:00" };
+  return defaultReportRange(now);
 }
 
 export function nextTokenForDay(orders: PosOrder[], day = currentBusinessDay()) {
