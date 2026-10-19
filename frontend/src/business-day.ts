@@ -24,3 +24,21 @@ export function nextTokenForDay(orders: PosOrder[], day = currentBusinessDay()) 
   return orders.reduce((next, order) => businessDayDate(order.date, order.time) === day
     ? Math.max(next, order.token + 1) : next, 1);
 }
+
+/** Give unsaved local tickets the next free token. Remote tickets stay on the server. */
+export function reassignTakenTokens(local: PosOrder[], remote: PosOrder[], taken: number) {
+  const remoteIds = new Set(remote.map((order) => order.id));
+  const orders = local.map((order) => ({ ...order }));
+  const conflicts = orders.filter((order) => order.token === taken && !remoteIds.has(order.id));
+  if (conflicts.length === 0) {
+    return { orders: local, nextToken: nextTokenForDay([...remote, ...local]), changed: false, assigned: [] as number[] };
+  }
+  const assigned: number[] = [];
+  for (const order of conflicts) {
+    const day = businessDayDate(order.date, order.time);
+    const others = [...remote, ...orders.filter((entry) => entry.id !== order.id)];
+    order.token = nextTokenForDay(others, day);
+    assigned.push(order.token);
+  }
+  return { orders, nextToken: nextTokenForDay([...remote, ...orders]), changed: true, assigned };
+}

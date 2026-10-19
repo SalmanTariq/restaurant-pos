@@ -149,6 +149,7 @@ export async function mockApi(
     till?: Record<string, unknown>;
     failTillPut?: boolean;
     conflictTill?: boolean;
+    tokenTaken?: boolean;
     staff?: Array<{ id: string; name: string; email: string; role: string }>;
     shops?: unknown[];
   } = {},
@@ -158,6 +159,7 @@ export async function mockApi(
   const staff = options.staff ?? [];
   const shops = options.shops ?? [];
   let armOrderConflict = Boolean(options.conflictTill);
+  let takenOrder: Record<string, unknown> | null = null;
 
   await page.addInitScript(() => {
     window.print = () => {};
@@ -226,10 +228,13 @@ export async function mockApi(
     }
 
     if (path === "/till" && method === "GET") {
+      const payload = structuredClone(till);
+      const orders = payload.orders as Array<{ id?: string }>;
+      if (takenOrder && !orders.some((order) => order.id === takenOrder?.id)) orders.unshift(takenOrder);
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(till),
+        body: JSON.stringify(payload),
       });
       return;
     }
@@ -244,6 +249,18 @@ export async function mockApi(
         return;
       }
       const body = request.postDataJSON() as TillPatch;
+      if (options.tokenTaken) {
+        const created = body.changes.find((entry) => entry.collection === "orders" && entry.before == null && entry.after && (entry.after as { token?: number }).token === 1);
+        if (created && !takenOrder) {
+          takenOrder = { ...(created.after as Record<string, unknown>), id: "other-till" };
+          await route.fulfill({
+            status: 409,
+            contentType: "application/json",
+            body: JSON.stringify({ message: "Token 1 was used by another till. Your local order is retained." }),
+          });
+          return;
+        }
+      }
       if (options.conflictTill) {
         const change = body.changes.find((entry) => entry.collection === "orders" && entry.key === "ord-paid");
         const current = (till.orders as Array<{ id: string; time?: string }>).find((row) => row.id === "ord-paid") ?? null;

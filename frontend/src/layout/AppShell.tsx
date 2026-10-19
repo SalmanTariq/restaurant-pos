@@ -100,7 +100,7 @@ export function AppShell({
   onScreen: (screen: Screen) => void;
   children: ReactNode;
 }) {
-  const { todayOpen, settings, sync, endDay, resolveSyncConflict } = usePos();
+  const { todayOpen, settings, sync, endDay, resolveSyncConflict, tokenNotice, dismissTokenNotice } = usePos();
   const [moreOpen, setMoreOpen] = useState(false);
   const displayRole = role === "admin" ? "Admin" : "Cashier";
   const primary = settings.useTables
@@ -193,6 +193,10 @@ export function AppShell({
       </header>
       {sync.conflict ? (
         <TicketConflictDialog conflict={sync.conflict} onPick={resolveSyncConflict} />
+      ) : tokenNotice ? (
+        <button type="button" className="sync-banner" onClick={dismissTokenNotice}>
+          {tokenNotice}
+        </button>
       ) : sync.status === "error" && sync.error ? (
         <p className="sync-banner" role="alert">
           Could not save to the server: {sync.error}

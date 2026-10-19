@@ -189,13 +189,19 @@ select:focus-visible {
 }
 
 .sync-banner {
+  display: block;
+  width: 100%;
   margin: 0;
   padding: 10px 18px;
   background: #4a1c1c;
   color: #ffd4d4;
+  font: inherit;
   font-size: 14px;
   font-weight: 600;
+  text-align: left;
+  border: 0;
   border-bottom: 1px solid #6a2a2a;
+  cursor: pointer;
 }
 
 .user-chip {

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { businessDayDate, businessDayRange, currentBusinessDay, nextTokenForDay } from '../src/business-day';
+import { businessDayDate, businessDayRange, currentBusinessDay, nextTokenForDay, reassignTakenTokens } from '../src/business-day';
 import { defaultReportRange } from '../src/demo-data';
 import { mockApi, sampleTill, signIn, waitForTill } from './helpers';
 
@@ -16,6 +16,22 @@ test('business day rolls over at 10am and filters through 3am the following date
   expect(currentBusinessDay(new Date(2026, 9, 6, 9, 59))).toBe('2026-10-05');
   expect(currentBusinessDay(new Date(2026, 9, 6, 10))).toBe('2026-10-06');
   expect(businessDayDate('2027-01-01', '1:00 AM')).toBe('2026-12-31');
+});
+
+test('a token another till already saved is renumbered, and the other till’s order is not copied', () => {
+  const local = [
+    { ...sampleTill().orders[0], id: 'ours', date: '2026-10-19', time: '10:02 PM', token: 1 },
+  ];
+  const remote = [
+    { ...sampleTill().orders[0], id: 'theirs', date: '2026-10-19', time: '7:00 PM', token: 1 },
+    { ...sampleTill().orders[0], id: 'earlier', date: '2026-10-19', time: '1:00 AM', token: 1 },
+  ];
+  const result = reassignTakenTokens(local, remote, 1);
+  expect(result.changed).toBe(true);
+  expect(result.orders.map(order => order.id)).toEqual(['ours']);
+  expect(result.assigned).toEqual([2]);
+  expect(result.orders[0].token).toBe(2);
+  expect(result.nextToken).toBe(nextTokenForDay([...remote, ...result.orders]));
 });
 
 test('token numbering continues after midnight and resets for the next business day', () => {

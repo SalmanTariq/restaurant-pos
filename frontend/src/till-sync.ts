@@ -188,6 +188,22 @@ export function createTillPusher(options: {
     return resolved;
   }
 
+  function replacePending(till: TillSnapshot) {
+    if (stopped || !base) return;
+    submitted = null;
+    queued = structuredClone(till);
+    blocked = false;
+    conflict = null;
+    retry = 0;
+    if (timer) {
+      window.clearTimeout(timer);
+      timer = null;
+    }
+    try { options.persist?.(journal(queued)); }
+    catch { blocked = true; setStatus("error", "Device storage is full. Keep this window open; offline changes could not be saved."); return; }
+    void drain();
+  }
+
   function flushNow() {
     if (timer) {
       window.clearTimeout(timer);
@@ -224,5 +240,5 @@ export function createTillPusher(options: {
     }
   }
 
-  return { initialize, enqueue, flushNow, resolveConflict, start, stop };
+  return { initialize, enqueue, flushNow, resolveConflict, replacePending, start, stop };
 }

@@ -69,7 +69,7 @@ import {
 import { applyOutbox, diffTill, type TillPatch } from "./till-patch";
 
 import { migrateLegacyTill } from "./till-legacy-migration";
-import { currentBusinessDay, nextTokenForDay } from "./business-day";
+import { currentBusinessDay, nextTokenForDay, reassignTakenTokens } from "./business-day";
 
 type PlaceInput = {
   type: PosOrder["type"];
@@ -126,6 +126,8 @@ type PosContextValue = {
   updateSettings: (patch: Partial<PosSettings>) => void;
   canAmendCatalog: boolean;
   resolveSyncConflict: (keep: "local" | "server") => void;
+  tokenNotice: string | null;
+  dismissTokenNotice: () => void;
 };
 
 const ORDERS_KEY = "dmn_pos_orders";
@@ -330,6 +332,9 @@ export function PosProvider({
     () => loadSavedOrders(restaurantId)?.orders ?? [],
   );
   const tokenDayRef = useRef(currentBusinessDay());
+  const issuedRef = useRef({ day: currentBusinessDay(), next: 1 });
+  const tillRef = useRef<TillSnapshot | null>(null);
+  const [tokenNotice, setTokenNotice] = useState<string | null>(null);
   const [storedNextToken, setNextToken] = useState(() => {
     const saved = loadSavedOrders(restaurantId);
     return Math.max(nextTokenForDay(saved?.orders ?? []),
@@ -342,6 +347,9 @@ export function PosProvider({
   }, []);
   const nextToken = Math.max(nextTokenForDay(orders, businessDay),
     tokenDayRef.current === businessDay ? storedNextToken : 1);
+  if (issuedRef.current.day !== businessDay || nextToken > issuedRef.current.next) {
+    issuedRef.current = { day: businessDay, next: nextToken };
+  }
   const [layout, setLayout] = useState<TableLayout[]>(() => {
     const saved = loadLayout(restaurantId);
     return saved.length > 0 ? saved : DEFAULT_FLOOR;
@@ -359,6 +367,9 @@ export function PosProvider({
   const [categories, setCategories] = useState<string[]>(() =>
     loadCategories(restaurantId, loadMenu(restaurantId)),
   );
+  tillRef.current = {
+    menu, orders, nextToken, expenses, staff, days, settings, layout, categories,
+  };
   const [sync, setSync] = useState<TillSyncState>({
     status: "saving",
     error: null,
@@ -374,7 +385,12 @@ export function PosProvider({
     lastPushedJson.current = JSON.stringify(till);
     clearTillDirty(restaurantIdRef.current);
   };
-  onStatusRef.current = setSync;
+  onStatusRef.current = (state) => {
+    setSync(state);
+    if (state.status === "error" && !/Token \d+ was used by another till/.test(state.error ?? "")) {
+      setTokenNotice(null);
+    }
+  };
   useEffect(() => {
     function syncOnline() {
       setCatalogOnline(isBrowserOnline());
@@ -447,6 +463,42 @@ export function PosProvider({
     setSync({ status: "error", error: CATALOG_OFFLINE_ERROR });
     return false;
   }
+
+  useEffect(() => {
+    const match = sync.status === "error"
+      ? /Token (\d+) was used by another till/.exec(sync.error ?? "")
+      : null;
+    if (!match) return;
+    const taken = Number(match[1]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const remote = await api<TillSnapshot>("/till");
+        if (cancelled) return;
+        const current = tillRef.current;
+        if (!current) return;
+        const result = reassignTakenTokens(current.orders, remote.orders, taken);
+        if (!result.changed) return;
+        const day = currentBusinessDay();
+        const reserved = issuedRef.current.day === day ? issuedRef.current.next : 1;
+        const next = Math.max(result.nextToken, reserved);
+        const nextTill: TillSnapshot = { ...current, orders: result.orders, nextToken: next };
+        issuedRef.current = { day, next };
+        tokenDayRef.current = day;
+        setOrders(result.orders);
+        setNextToken(next);
+        const numbers = result.assigned.join(" and ");
+        const label = result.assigned.length === 1
+          ? `This order is now token ${numbers}.`
+          : `These orders are now tokens ${numbers}.`;
+        setTokenNotice(`Token ${taken} was already used by another till. ${label} Reprint the ticket.`);
+        pusherRef.current.replacePending(nextTill);
+      } catch {
+        // Keep the server banner; the order is still on this till.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [sync.error, sync.status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -633,7 +685,10 @@ export function PosProvider({
 
   function placeOrder(input: PlaceInput) {
     const day = currentBusinessDay();
-    const token = Math.max(nextTokenForDay(orders, day), tokenDayRef.current === day ? storedNextToken : 1);
+    const fromOrders = Math.max(nextTokenForDay(orders, day), tokenDayRef.current === day ? storedNextToken : 1);
+    const reserved = issuedRef.current.day === day ? issuedRef.current.next : 1;
+    const token = Math.max(fromOrders, reserved);
+    issuedRef.current = { day, next: token + 1 };
     const order: PosOrder = {
       id: `ord-${Date.now()}-${crypto.randomUUID()}`,
       token,
@@ -1022,6 +1077,8 @@ export function PosProvider({
     updateSettings,
     canAmendCatalog: catalogOnline,
     resolveSyncConflict,
+    tokenNotice,
+    dismissTokenNotice: () => setTokenNotice(null),
   };
 
   return <PosContext.Provider value={value}>{children}</PosContext.Provider>;

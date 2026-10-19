@@ -83,6 +83,31 @@ test('edits made during a lost acknowledgement survive reload as two ordered pat
   first.stop(); resolve(); restarted.stop();
 });
 
+test('a taken token can be renumbered and sent without staying blocked', async () => {
+  const base = snapshot();
+  const next = structuredClone(base);
+  next.orders.unshift({ ...base.orders[0], id: 'new-order', token: 1 });
+  const sent: TillPatch[] = [];
+  const pusher = createTillPusher({
+    isOnline: () => true,
+    put: async (patch) => {
+      sent.push(patch);
+      if (sent.length === 1) throw new ApiError('Token 1 was used by another till. Your local order is retained.', 409);
+    },
+  });
+  pusher.initialize(base);
+  pusher.enqueue(next);
+  await tick();
+  expect(sent).toHaveLength(1);
+  const fixed = structuredClone(next);
+  fixed.orders[0].token = 2;
+  pusher.replacePending(fixed);
+  await tick();
+  expect(sent).toHaveLength(2);
+  expect(sent[1].changes[0].after).toMatchObject({ id: 'new-order', token: 2 });
+  pusher.stop();
+});
+
 test('conflicts retain the outbox and do not retry automatically', async () => {
   const base = snapshot(), next = structuredClone(base);
   next.orders[0].payment = 'online';

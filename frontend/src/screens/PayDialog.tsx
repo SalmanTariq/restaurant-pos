@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { rupees } from "../demo-data";
 import type { PaymentMethod } from "../pos-types";
 
@@ -15,6 +15,7 @@ export function PayDialog({
 }) {
   const [paidWith, setPaidWith] = useState<PaymentMethod | null>(null);
   const [printBill, setPrintBill] = useState(true);
+  const sent = useRef(false);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -25,8 +26,10 @@ export function PayDialog({
   }, [onClose]);
 
   function pay(method: PaymentMethod) {
-    onPaid(method, { printBill });
+    if (sent.current) return;
+    sent.current = true;
     setPaidWith(method);
+    onPaid(method, { printBill });
   }
 
   if (paidWith) {
